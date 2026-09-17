@@ -130,7 +130,8 @@ h1 { margin-bottom: 5px; color: #3b161b; font-family: Georgia, "Noto Serif Thai"
 .comparison-form-heading { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 18px; }
 .comparison-form-heading h3 { margin: 0 0 3px; color: #4b302b; font-size: 1rem; }
 .comparison-form-heading p { margin: 0; color: #8a7c74; font-size: .72rem; }
-.comparison-fields, .comparison-choice-grid { display: grid; grid-template-columns: 1fr; gap: 15px; }
+.comparison-fields, .comparison-choice-grid { display: grid; grid-template-columns: 1fr; gap: 15px; align-items: start; }
+.comparison-fields > .field { align-content: start; }
 .comparison-fields .field > span small, .comparison-form .field > span small { color: #96877e; font-weight: 500; }
 .unknown-time-hint { display: flex; gap: 5px; color: #8a632e; font-size: .67rem; font-weight: 500; line-height: 1.45; }
 .unknown-time-hint i { margin-top: 2px; }

@@ -18,6 +18,7 @@ import { assessDayMasterStrength } from './services/strength-engine'
 import { createBlindTest, evaluateBlindTest } from './services/blind-test'
 import { buildLuckPillarTimeline, interpretLuckPillar } from './services/luck-pillars'
 import { interpretCompatibility } from './services/compatibility'
+import { pickerDateToTimeString, timeStringToPickerDate } from './services/time-input'
 
 const isBlindTestMode = new URLSearchParams(window.location.search).get('mode') === 'blind-test'
 
@@ -36,6 +37,14 @@ const comparisonForm = reactive({
   timezoneId: 'Asia/Bangkok',
   relationship: 'partner',
   focus: 'love'
+})
+const birthTimePicker = computed({
+  get: () => timeStringToPickerDate(form.birthTime),
+  set: (value) => { form.birthTime = pickerDateToTimeString(value) }
+})
+const comparisonTimePicker = computed({
+  get: () => timeStringToPickerDate(comparisonForm.birthTime),
+  set: (value) => { comparisonForm.birthTime = pickerDateToTimeString(value) }
 })
 
 const genderOptions = [
@@ -366,7 +375,18 @@ submit()
           </label>
           <label class="field">
             <span>เวลาเกิด (รูปแบบ 24 ชั่วโมง)</span>
-            <InputText v-model="form.birthTime" type="text" inputmode="numeric" placeholder="เช่น 23:30" maxlength="5" required />
+            <DatePicker
+              v-model="birthTimePicker"
+              time-only
+              hour-format="24"
+              show-icon
+              :manual-input="false"
+              placeholder="เลือกเวลา"
+              fluid
+              required
+            >
+              <template #dropdownicon><i class="pi pi-clock" /></template>
+            </DatePicker>
           </label>
           <label class="field field-wide">
             <span>เพศ</span>
@@ -601,7 +621,18 @@ submit()
           </label>
           <label class="field">
             <span>เวลาเกิด (24 ชั่วโมง) <small>(ไม่บังคับ)</small></span>
-            <InputText v-model="comparisonForm.birthTime" type="text" inputmode="numeric" placeholder="เช่น 23:30" maxlength="5" />
+            <DatePicker
+              v-model="comparisonTimePicker"
+              time-only
+              hour-format="24"
+              show-icon
+              show-clear
+              :manual-input="false"
+              placeholder="เลือกเวลาหรือเว้นว่าง"
+              fluid
+            >
+              <template #dropdownicon><i class="pi pi-clock" /></template>
+            </DatePicker>
             <small v-if="!comparisonForm.birthTime" class="unknown-time-hint"><i class="pi pi-info-circle" /> ไม่ทราบเวลาก็เปรียบเทียบได้ แต่รายละเอียดบางส่วนอาจคลาดเคลื่อน</small>
           </label>
           <label class="field">

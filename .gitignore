@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.pnpm-store/
+.netlify/
+.env*
+!.env.example
+coverage/

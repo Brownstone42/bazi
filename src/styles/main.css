@@ -1,0 +1,308 @@
+@import "tailwindcss";
+@import "tailwindcss-primeui";
+
+:root {
+  color: #26201d;
+  background: #eee9df;
+  font-family: Inter, "Noto Sans Thai", "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+html, body, #app { min-height: 100%; margin: 0; }
+body {
+  min-width: 320px;
+  background:
+    radial-gradient(circle at 8% 12%, rgba(151, 38, 55, .09), transparent 24rem),
+    linear-gradient(135deg, rgba(255,255,255,.34) 25%, transparent 25%) 0 0 / 26px 26px,
+    #eee9df;
+}
+button, input { font: inherit; }
+
+.page-shell { width: 100%; margin: 0 auto; padding: 24px max(12px, env(safe-area-inset-left)) calc(44px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-right)); }
+.hero { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 20px; }
+.brand-mark { display: grid; place-items: center; flex: 0 0 58px; width: 58px; height: 58px; color: #f8ebcf; background: #741b28; border-radius: 14px; font: 700 23px Georgia, serif; box-shadow: 0 10px 24px rgba(77, 20, 29, .20); }
+.eyebrow { margin: 0 0 6px; color: #9a6625; font-size: .72rem; font-weight: 800; letter-spacing: .18em; }
+h1, h2, h3, p { margin-top: 0; }
+h1 { margin-bottom: 5px; color: #3b161b; font-family: Georgia, "Noto Serif Thai", serif; font-size: clamp(1.8rem, 4vw, 2.8rem); }
+.hero-copy { margin-bottom: 0; color: #716762; }
+.view-navigation { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin: 0 0 16px; padding: 5px; background: rgba(255,253,248,.78); border: 1px solid rgba(85,59,48,.1); border-radius: 16px; box-shadow: 0 8px 24px rgba(75,61,49,.06); }
+.view-navigation button { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 11px 10px; color: #786b64; background: transparent; border: 0; border-radius: 12px; cursor: pointer; text-align: left; }
+.view-navigation button > i { flex: 0 0 auto; font-size: 1rem; }
+.view-navigation button > span { min-width: 0; }
+.view-navigation strong, .view-navigation small { display: block; }
+.view-navigation strong { font-size: .76rem; line-height: 1.35; }
+.view-navigation small { display: none; margin-top: 2px; font-size: .62rem; line-height: 1.35; }
+.view-navigation button.active { color: #fff6e8; background: #741b28; box-shadow: 0 7px 17px rgba(116,27,40,.2); }
+.workspace { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.form-card, .result-card { border: 1px solid rgba(85, 59, 48, .12); border-radius: 20px; box-shadow: 0 20px 55px rgba(75, 61, 49, .10); }
+.form-card { padding: 20px; background: rgba(255, 253, 248, .94); }
+.result-card { position: static; overflow: hidden; padding: 20px; color: #f8edda; background: linear-gradient(145deg, #37181c 0%, #611d29 48%, #291416 100%); }
+.section-heading { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 22px; }
+.section-heading h2, .result-card h2 { margin-bottom: 2px; font-size: 1.18rem; }
+.section-heading p { margin-bottom: 0; color: #8a817b; font-size: .84rem; }
+.step { display: grid; place-items: center; min-width: 36px; height: 36px; color: #8a2635; background: #f5e5dd; border-radius: 50%; font-size: .72rem; font-weight: 800; }
+.field-grid { display: grid; grid-template-columns: 1fr; gap: 15px; }
+.field { display: grid; gap: 7px; color: #574d47; font-size: .82rem; font-weight: 700; }
+.field-wide { grid-column: auto; }
+.field .p-component { width: 100%; }
+.field input, .field .p-select, .field .p-datepicker { min-height: 44px; }
+.timezone-field { margin-top: 17px; }
+.timezone-field small { color: #92857d; font-weight: 400; }
+.calculate-button { width: 100%; min-height: 48px; padding-block: .92rem !important; background: #741b28 !important; border-color: #741b28 !important; }
+.result-topline { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.result-card h2 { color: #fff7e9; font-family: Georgia, "Noto Serif Thai", serif; font-size: 1.55rem; }
+.status-dot { color: #d7b986; font-size: .72rem; white-space: nowrap; }
+.status-dot::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 7px; background: #d7b986; border-radius: 50%; box-shadow: 0 0 0 4px rgba(215,185,134,.12); }
+.pillars-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 22px 0 18px; }
+.pillar { text-align: center; overflow: hidden; background: rgba(255, 247, 230, .075); border: 1px solid rgba(255, 236, 205, .16); border-radius: 16px; }
+.pillar-label { padding: 9px 3px; color: #d6b98e; background: rgba(0,0,0,.12); font-size: .72rem; }
+.pillar-label small { display: block; opacity: .65; font-size: .62rem; }
+.stem, .branch { font: 600 clamp(1.9rem, 10vw, 2.45rem) Georgia, "Noto Serif SC", serif; line-height: 1.2; }
+.stem { padding-top: 13px; color: #ffecc2; }
+.branch { padding-top: 7px; color: #efc77f; }
+.seed-translation { min-height: 18px; padding: 0 3px; color: #d8c2a1; font-size: .65rem; }
+.branch-translation { padding-bottom: 11px; color: #cbb085; }
+.pillar-code { padding: 7px; color: #bda688; border-top: 1px solid rgba(255,255,255,.08); font-size: .72rem; }
+.day-master { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 15px 18px; color: #d9c2a3; background: rgba(0,0,0,.16); border-radius: 14px; font-size: .8rem; }
+.day-master strong { color: #fff1cf; font-size: 1rem; }
+.birth-summary { margin-top: 18px; padding: 13px 16px; color: #cfbda5; background: rgba(255,255,255,.055); border-radius: 13px; font-size: .75rem; text-align: center; }
+.birth-summary i { margin-right: 5px; color: #e3c999; }
+.disclaimer { margin: 18px 0 0; color: #a9957b; text-align: center; font-size: .7rem; }
+.error-box { display: flex; gap: 8px; margin-top: 28px; padding: 16px; color: #ffd3d8; background: rgba(255,76,100,.12); border-radius: 12px; }
+.reading-section { margin-top: 16px; padding: 20px; background: rgba(255, 253, 248, .94); border: 1px solid rgba(85, 59, 48, .12); border-radius: 20px; box-shadow: 0 16px 40px rgba(75, 61, 49, .08); }
+.reading-intro { display: block; margin-bottom: 20px; }
+.reading-intro h2 { margin-bottom: 8px; color: #461922; font: 700 clamp(1.5rem, 3vw, 2.1rem) Georgia, "Noto Serif Thai", serif; }
+.reading-intro > div > p:last-child { max-width: 760px; margin-bottom: 0; color: #685e58; line-height: 1.75; }
+.reading-badge { display: inline-block; margin-top: 15px; padding: 9px 13px; color: #7e2533; background: #f5e6df; border-radius: 999px; font-size: .76rem; font-weight: 700; white-space: nowrap; }
+.reading-badge i { margin-right: 5px; }
+.structure-panel { margin-bottom: 20px; padding: 20px; color: #efe2cf; background: linear-gradient(135deg, #4a2027, #692632); border-radius: 18px; }
+.structure-heading { display: block; margin-bottom: 17px; }
+.structure-heading h3 { margin: 5px 0 0; color: #fff5e5; font-size: 1.05rem; }
+.experimental-label { color: #d6b98d; font-size: .67rem; font-weight: 700; letter-spacing: .05em; }
+.clarity-pill { display: inline-block; margin-top: 11px; padding: 7px 10px; color: #f0d7ad; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); border-radius: 999px; font-size: .7rem; text-align: center; }
+.structure-grid { display: grid; grid-template-columns: 1fr; gap: 9px; }
+.structure-grid > div { padding: 13px; background: rgba(255,255,255,.07); border-radius: 12px; }
+.structure-grid span { display: block; margin-bottom: 4px; color: #cbb79d; font-size: .7rem; }
+.structure-grid strong { color: #fff0cf; font-size: .95rem; }
+.strength-technical-note { margin: 12px 2px 0; color: #d9c5aa; font-size: .75rem; line-height: 1.65; }
+.structure-evidence { margin-top: 13px; padding: 11px 13px; color: #d9c5aa; background: rgba(0,0,0,.13); border-radius: 11px; font-size: .75rem; }
+.structure-evidence summary { color: #f1d6aa; cursor: pointer; font-weight: 700; }
+.structure-evidence ul { margin: 9px 0 0; padding-left: 18px; line-height: 1.7; }
+.insight-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.insight-card { position: relative; padding: 22px; background: #fffdfa; border: 1px solid #e9e0d8; border-radius: 18px; }
+.insight-icon { display: grid; place-items: center; width: 37px; height: 37px; margin-bottom: 13px; color: #852b39; background: #f7e9e2; border-radius: 11px; }
+.insight-card h3 { margin-bottom: 8px; color: #402c28; font-size: 1rem; }
+.insight-card > p { min-height: auto; margin-bottom: 13px; color: #695e58; font-size: .88rem; line-height: 1.7; }
+.life-verdict { display: block; margin: -1px 0 10px; color: #8a2736; font: 700 .86rem Georgia, "Noto Serif Thai", serif; line-height: 1.5; }
+.career-recommendations { margin: 14px 0; padding: 13px; background: #f7f0e7; border-radius: 12px; }
+.career-recommendations > span { display: block; margin-bottom: 8px; color: #8a5b2b; font-size: .68rem; font-weight: 800; }
+.career-recommendations > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.career-recommendations b { padding: 6px 9px; color: #6d3139; background: #fffaf3; border: 1px solid #e4d2bf; border-radius: 999px; font-size: .67rem; font-weight: 700; }
+.work-environment { padding: 11px 13px; background: #f8f4ef; border-radius: 11px; }
+.work-environment strong { color: #6f2832; }
+.life-actions { display: grid; gap: 8px; margin-top: 14px; }
+.life-actions > div { padding: 12px 13px; border-radius: 11px; }
+.life-actions > div:first-child { background: #edf4e9; }
+.life-actions > div:last-child { background: #f8ece9; }
+.life-actions span { display: block; margin-bottom: 5px; color: #42633c; font-size: .68rem; font-weight: 800; }
+.life-actions > div:last-child span { color: #91404a; }
+.life-actions p { margin: 0; color: #625a54; font-size: .74rem; line-height: 1.6; }
+.life-disclaimer { display: block; margin-top: 11px; color: #8b7b70; font-size: .68rem; line-height: 1.5; }
+.insight-card details { padding: 11px 13px; color: #7a6d65; background: #f8f4ef; border-radius: 11px; font-size: .76rem; }
+.insight-card summary { color: #6f2832; cursor: pointer; font-weight: 700; }
+.insight-card ul { margin: 9px 0 0; padding-left: 18px; line-height: 1.65; }
+.feedback-row { display: flex; justify-content: space-between; align-items: center; min-height: 30px; margin-top: 13px; color: #92857d; font-size: .72rem; }
+.feedback-row button { width: 40px; height: 40px; margin-left: 5px; color: #756860; background: transparent; border: 1px solid #ddd2ca; border-radius: 50%; cursor: pointer; }
+.feedback-row button:hover { color: #7e2533; background: #f7e9e2; border-color: #d9b9ae; }
+.feedback-done { color: #6c8b62; }
+.method-note { display: flex; gap: 10px; margin-top: 18px; padding: 14px 16px; color: #756b65; background: #eee9e2; border-radius: 13px; font-size: .76rem; line-height: 1.5; }
+.method-note i { margin-top: 2px; color: #91602b; }
+
+.comparison-section { margin-top: 16px; padding: 20px; background: rgba(255,253,248,.94); border: 1px solid rgba(85,59,48,.12); border-radius: 20px; box-shadow: 0 16px 40px rgba(75,61,49,.08); }
+.comparison-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 20px; }
+.comparison-heading h2 { margin-bottom: 7px; color: #461922; font: 700 clamp(1.45rem, 5vw, 2rem) Georgia, "Noto Serif Thai", serif; }
+.comparison-heading p:last-child { max-width: 690px; margin-bottom: 0; color: #746861; font-size: .84rem; line-height: 1.65; }
+.premium-badge { flex: 0 0 auto; padding: 8px 10px; color: #77501f; background: #f3e3bd; border: 1px solid #e4cb96; border-radius: 999px; font-size: .67rem; font-weight: 800; white-space: nowrap; }
+.premium-badge i { margin-right: 4px; }
+.comparison-form { padding: 18px; background: #f6f1eb; border: 1px solid #e7ddd4; border-radius: 18px; }
+.comparison-form-heading { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 18px; }
+.comparison-form-heading h3 { margin: 0 0 3px; color: #4b302b; font-size: 1rem; }
+.comparison-form-heading p { margin: 0; color: #8a7c74; font-size: .72rem; }
+.comparison-fields, .comparison-choice-grid { display: grid; grid-template-columns: 1fr; gap: 15px; }
+.comparison-fields .field > span small, .comparison-form .field > span small { color: #96877e; font-weight: 500; }
+.unknown-time-hint { display: flex; gap: 5px; color: #8a632e; font-size: .67rem; font-weight: 500; line-height: 1.45; }
+.unknown-time-hint i { margin-top: 2px; }
+.comparison-choice-grid { margin-top: 18px; padding-top: 18px; border-top: 1px solid #ded3c9; }
+.comparison-order-summary { display: flex; align-items: center; gap: 11px; margin: 18px 0 14px; padding: 13px 14px; color: #f4e6d3; background: linear-gradient(135deg, #4a2027, #682632); border-radius: 13px; }
+.comparison-order-summary > i { color: #e2bd83; font-size: 1.1rem; }
+.comparison-order-summary span, .comparison-order-summary strong { display: block; }
+.comparison-order-summary span { margin-bottom: 2px; color: #d5bda0; font-size: .64rem; }
+.comparison-order-summary strong { color: #fff2d9; font-size: .78rem; line-height: 1.45; }
+.comparison-error { display: flex; gap: 7px; margin-bottom: 13px; padding: 11px 13px; color: #963442; background: #f8e5e4; border-radius: 11px; font-size: .75rem; }
+.comparison-result { margin-top: 18px; padding: 20px; color: #efe2cf; background: linear-gradient(145deg, #37181c, #64222e 52%, #2b1518); border-radius: 19px; }
+.comparison-result-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.comparison-result-heading > div > span { color: #dfbd87; font-size: .68rem; font-weight: 800; }
+.comparison-result-heading h3 { margin: 5px 0; color: #fff4df; font: 700 1.25rem Georgia, "Noto Serif Thai", serif; }
+.comparison-result-heading p { margin: 0; color: #d5c0a6; font-size: .72rem; }
+.comparison-result-heading > small { flex: 0 0 auto; padding: 7px 9px; color: #e8d2ad; background: rgba(255,255,255,.08); border-radius: 999px; font-size: .63rem; white-space: nowrap; }
+.comparison-result-heading > small i { margin-right: 3px; }
+.comparison-warning { display: flex; gap: 9px; margin-top: 15px; padding: 12px 13px; color: #f2dbb4; background: rgba(224,171,83,.13); border: 1px solid rgba(224,171,83,.23); border-radius: 11px; }
+.comparison-warning i { flex: 0 0 auto; margin-top: 2px; color: #e7bb75; }
+.comparison-warning p { margin: 0; font-size: .7rem; line-height: 1.55; }
+.comparison-result-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 16px; }
+.comparison-result-card { padding: 14px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.07); border-radius: 13px; }
+.comparison-result-card span { display: block; margin-bottom: 6px; color: #e1bd85; font-size: .68rem; font-weight: 800; }
+.comparison-result-card p { margin: 0; color: #f0e4d4; font-size: .78rem; line-height: 1.7; }
+.comparison-result-card.featured { background: rgba(224,189,137,.12); border-color: rgba(224,189,137,.18); }
+.comparison-result-card.positive span { color: #bcd2a9; }
+.comparison-result-card.caution span { color: #e5ada6; }
+.comparison-disclaimer { margin: 16px 0 0; color: #ad9880; font-size: .66rem; line-height: 1.5; text-align: center; }
+
+.luck-section { margin-top: 16px; padding: 20px; overflow: hidden; background: rgba(255, 253, 248, .94); border: 1px solid rgba(85, 59, 48, .12); border-radius: 20px; box-shadow: 0 16px 40px rgba(75, 61, 49, .08); }
+.view-profile-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; padding: 13px 14px; background: #f3eee8; border-radius: 13px; }
+.view-profile-summary span, .view-profile-summary small { display: block; color: #8b7b70; font-size: .66rem; }
+.view-profile-summary strong { display: block; margin: 3px 0; color: #53352f; font-size: .78rem; line-height: 1.45; }
+.view-profile-summary button { flex: 0 0 auto; padding: 9px 11px; color: #792735; background: #fffaf4; border: 1px solid #ddcec2; border-radius: 10px; cursor: pointer; font-size: .69rem; font-weight: 700; }
+.view-profile-summary button i { margin-right: 4px; }
+.luck-heading { display: block; }
+.luck-heading h2 { margin-bottom: 7px; color: #461922; font: 700 clamp(1.45rem, 3vw, 2rem) Georgia, "Noto Serif Thai", serif; }
+.luck-heading p:last-child { max-width: 720px; margin-bottom: 0; color: #746861; font-size: .86rem; line-height: 1.65; }
+.luck-direction { display: inline-block; margin-top: 13px; padding: 9px 13px; color: #765020; background: #f5e8cd; border-radius: 999px; font-size: .76rem; font-weight: 800; white-space: nowrap; }
+.luck-direction i { margin-right: 5px; }
+.luck-metadata { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 18px 0; }
+.luck-metadata > div { padding: 15px 17px; background: #f3eee8; border-radius: 14px; }
+.luck-metadata span, .luck-metadata small { display: block; color: #8b7b70; font-size: .69rem; }
+.luck-metadata strong { display: block; margin: 4px 0 2px; color: #53352f; font-size: .86rem; line-height: 1.5; }
+.current-luck-reading { margin: 0 0 20px; padding: 18px; color: #f7ead7; background: linear-gradient(145deg, #401b22, #672633); border-radius: 17px; overflow-anchor: none; }
+.current-luck-heading { display: block; }
+.current-luck-heading span { color: #d8b98b; font-size: .69rem; font-weight: 800; letter-spacing: .04em; }
+.current-luck-heading h3 { margin: 5px 0 7px; color: #fff4df; font: 700 1.2rem Georgia, "Noto Serif Thai", serif; }
+.current-luck-heading p { margin-bottom: 0; color: #ddcbb5; font-size: .8rem; line-height: 1.65; }
+.current-luck-heading small { display: block; margin-top: 11px; color: #cdb698; font-size: .69rem; line-height: 1.5; }
+.current-luck-grid { display: grid; grid-template-columns: 1fr; gap: 9px; margin-top: 15px; }
+.current-luck-grid > div { padding: 13px; background: rgba(255,255,255,.07); border-radius: 12px; }
+.current-luck-grid span { display: block; margin-bottom: 5px; color: #e0bd89; font-size: .68rem; font-weight: 800; }
+.current-luck-grid p { margin: 0; color: #f0e3d2; font-size: .76rem; line-height: 1.65; }
+.luck-guidance { margin-top: 10px; padding: 13px 14px; color: #e8d7c2; background: rgba(224,189,137,.1); border: 1px solid rgba(224,189,137,.22); border-radius: 11px; font-size: .72rem; }
+.luck-guidance strong { color: #f2d29e; }
+.luck-guidance strong small { color: #d7c3aa; font-size: .65rem; font-weight: 600; }
+.luck-guidance p { margin: 7px 0 0; line-height: 1.65; }
+.luck-interactions { margin-top: 10px; padding: 12px 14px; color: #e8d7c2; background: rgba(0,0,0,.15); border-radius: 11px; font-size: .72rem; }
+.luck-interactions strong { color: #f2d29e; }
+.luck-interactions ul, .luck-evidence ul { margin: 7px 0 0; padding-left: 18px; line-height: 1.6; }
+.luck-evidence { margin-top: 10px; padding: 11px 13px; color: #d7c3aa; background: rgba(0,0,0,.13); border-radius: 11px; font-size: .72rem; }
+.luck-evidence summary { color: #f2d29e; cursor: pointer; font-weight: 800; }
+.luck-carousel { position: relative; width: calc(100% + 32px); max-width: 620px; margin: 20px -16px 0; overflow: hidden; }
+.luck-track { --luck-card-width: 72%; display: flex; gap: 12px; padding: 8px calc((100% - var(--luck-card-width)) / 2) 18px; overflow-x: hidden; scroll-behavior: smooth; scroll-snap-type: x mandatory; }
+.luck-cycle { position: relative; flex: 0 0 var(--luck-card-width); min-width: 0; min-height: 218px; padding: 18px; overflow: hidden; color: inherit; scroll-snap-align: center; background: #fffdfa; border: 1px solid #e4d9cf; border-radius: 19px; cursor: pointer; text-align: left; opacity: .55; filter: saturate(.45); transform: scale(.9); transition: transform .35s cubic-bezier(.22,.8,.28,1), opacity .28s ease, filter .28s ease, border-color .28s ease, box-shadow .28s ease; }
+.luck-cycle::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: #c9ae87; }
+.luck-cycle.current { background: #fff8e8; border-color: #b98945; box-shadow: 0 10px 28px rgba(118, 80, 32, .15); }
+.luck-cycle.current::before { background: #8a2736; }
+.luck-cycle.selected { z-index: 1; border-color: #7f2634; box-shadow: 0 0 0 3px rgba(127, 38, 52, .10), 0 10px 28px rgba(77, 37, 42, .12); opacity: 1; filter: none; transform: scale(1); }
+.luck-cycle-content { height: 100%; opacity: 0; transition: opacity .16s ease; }
+.luck-cycle.selected .luck-cycle-content { opacity: 1; transition-delay: .16s; }
+.luck-cycle:focus-visible { outline: 3px solid rgba(127, 38, 52, .25); outline-offset: 2px; }
+.luck-cycle-topline { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: #98877b; font-size: .66rem; }
+.luck-cycle-topline strong { color: #8a2736; font-size: .64rem; }
+.luck-cycle-summary { min-height: 76px; margin: 17px 0 12px; padding: 14px 12px; background: #f6f0e9; border-radius: 12px; text-align: center; }
+.luck-cycle-summary b { display: block; color: #5a202a; font: 700 .94rem Georgia, "Noto Serif Thai", serif; line-height: 1.45; }
+.luck-cycle-summary small { display: block; margin-top: 5px; color: #8b7a70; font-size: .66rem; line-height: 1.45; }
+.luck-ganzhi { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 15px 0 12px; }
+.luck-ganzhi > div { text-align: center; }
+.luck-ganzhi b { display: block; color: #5a202a; font: 700 2.25rem Georgia, "Noto Serif SC", serif; line-height: 1.15; }
+.luck-ganzhi small { display: block; min-height: 28px; color: #917c6e; font-size: .64rem; line-height: 1.4; }
+.luck-years { margin-bottom: 3px; color: #563e37; font-size: .85rem; font-weight: 800; text-align: center; }
+.luck-calendar { margin-bottom: 14px; color: #8b7a70; font-size: .71rem; text-align: center; }
+.luck-calendar small { display: block; margin-top: 2px; }
+.luck-arrow { position: absolute; z-index: 3; top: 50%; display: grid; place-items: center; width: 40px; height: 40px; padding: 0; color: #fffaf2; background: rgba(72, 28, 36, .9); border: 1px solid rgba(255,255,255,.35); border-radius: 50%; box-shadow: 0 8px 20px rgba(53, 29, 31, .24); cursor: pointer; transform: translateY(-50%); transition: background .18s ease, opacity .18s ease, transform .18s ease; }
+.luck-arrow:not(:disabled):hover { background: #7f2634; transform: translateY(-50%) scale(1.06); }
+.luck-arrow:focus-visible { outline: 3px solid rgba(127, 38, 52, .25); outline-offset: 3px; }
+.luck-arrow:disabled { cursor: default; opacity: .18; }
+.luck-arrow-previous { left: 12px; }
+.luck-arrow-next { right: 12px; }
+.luck-carousel-position { margin: -3px 0 13px; color: #8b7a70; font-size: .68rem; font-weight: 700; text-align: center; }
+.luck-ten-gods { display: grid; gap: 7px; margin: 0; padding-top: 12px; border-top: 1px solid #eee4db; }
+.luck-ten-gods div { display: grid; gap: 2px; }
+.luck-ten-gods dt { color: #a06e32; font-size: .63rem; font-weight: 800; }
+.luck-ten-gods dd { margin: 0; color: #6e6058; font-size: .7rem; line-height: 1.45; }
+.luck-note { margin: 4px 0 0; color: #84766d; font-size: .73rem; line-height: 1.5; }
+.luck-note i { margin-right: 5px; color: #97652c; }
+
+.blind-test-card { padding: 20px; background: rgba(255, 253, 248, .96); border: 1px solid rgba(85, 59, 48, .12); border-radius: 20px; box-shadow: 0 20px 55px rgba(75, 61, 49, .10); }
+.blind-test-card h2 { margin-bottom: 0; color: #461922; font: 700 1.45rem Georgia, "Noto Serif Thai", serif; }
+.internal-badge { padding: 7px 10px; color: #7e2533; background: #f5e6df; border-radius: 999px; font-size: .68rem; font-weight: 700; white-space: nowrap; }
+.blind-instruction { margin: 18px 0; padding: 14px 16px; color: #6f625b; background: #f3eee8; border-radius: 13px; font-size: .8rem; line-height: 1.65; }
+.blind-candidates { display: grid; gap: 12px; }
+.blind-candidate { padding: 17px; background: #fff; border: 1px solid #e7ddd5; border-radius: 16px; transition: border-color .18s, box-shadow .18s; }
+.blind-candidate.selected { border-color: #9d4654; box-shadow: 0 0 0 3px rgba(126, 37, 51, .08); }
+.blind-candidate.answer { border-color: #6f9366; box-shadow: 0 0 0 3px rgba(85, 126, 74, .10); }
+.blind-candidate.incorrect { border-color: #b96c65; }
+.candidate-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 11px; }
+.candidate-heading strong { color: #501d26; font-size: 1rem; }
+.candidate-heading button { padding: 7px 10px; color: #7d2936; background: #f8eae4; border: 0; border-radius: 999px; cursor: pointer; font-size: .7rem; font-weight: 700; }
+.candidate-heading button:disabled { cursor: default; opacity: .7; }
+.candidate-heading i { margin-right: 4px; }
+.blind-candidate > p { margin-bottom: 12px; color: #594e48; font-size: .83rem; line-height: 1.65; }
+.blind-candidate dl { display: grid; gap: 8px; margin: 0; }
+.blind-candidate dl > div { padding-top: 8px; border-top: 1px solid #eee7e1; }
+.blind-candidate dt { margin-bottom: 3px; color: #91602b; font-size: .68rem; font-weight: 800; }
+.blind-candidate dd { margin: 0; color: #776b64; font-size: .76rem; line-height: 1.55; }
+.blind-response { display: grid; gap: 14px; margin-top: 18px; padding: 18px; background: #f5f0ea; border-radius: 16px; }
+.blind-error { display: flex; gap: 8px; padding: 12px 14px; color: #982f3d; background: #fae8e7; border-radius: 11px; font-size: .77rem; }
+.blind-result { display: flex; gap: 12px; margin-top: 18px; padding: 17px; border-radius: 14px; }
+.blind-result.correct { color: #375a31; background: #e8f1e4; }
+.blind-result.not-correct { color: #744b20; background: #f5ead8; }
+.blind-result > i { margin-top: 2px; font-size: 1.2rem; }
+.blind-result strong { display: block; margin-bottom: 4px; }
+.blind-result p { margin: 0; font-size: .75rem; line-height: 1.5; }
+
+@media (max-width: 420px) {
+  .result-topline { display: block; }
+  .status-dot { display: inline-block; margin-top: 8px; }
+  .day-master { align-items: flex-start; flex-direction: column; }
+  .blind-test-card { padding: 20px; border-radius: 19px; }
+  .candidate-heading { align-items: flex-start; }
+  .comparison-heading, .comparison-result-heading { display: block; }
+  .premium-badge, .comparison-result-heading > small { display: inline-block; margin-top: 12px; }
+}
+
+@media (min-width: 640px) {
+  .page-shell { padding-inline: 20px; }
+  .view-navigation { gap: 10px; padding: 6px; }
+  .view-navigation button { padding: 13px 15px; }
+  .view-navigation small { display: block; }
+  .field-grid { grid-template-columns: 1fr 1fr; gap: 17px 14px; }
+  .comparison-fields, .comparison-choice-grid { grid-template-columns: 1fr 1fr; gap: 17px 14px; }
+  .field-wide { grid-column: 1 / -1; }
+  .structure-heading, .luck-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; }
+  .clarity-pill, .luck-direction { margin-top: 0; }
+  .structure-grid { grid-template-columns: repeat(3, 1fr); }
+  .luck-metadata { grid-template-columns: 1fr; }
+  .current-luck-heading { display: flex; justify-content: space-between; gap: 18px; }
+  .current-luck-heading small { flex: 0 0 auto; margin-top: 0; text-align: right; }
+  .current-luck-grid { grid-template-columns: 1fr 1fr; }
+  .comparison-result-grid { grid-template-columns: 1fr 1fr; }
+  .comparison-result-card.featured { grid-column: 1 / -1; }
+  .luck-carousel { width: 100%; margin-inline: auto; }
+}
+
+@media (min-width: 821px) {
+  .page-shell { width: min(1180px, calc(100% - 32px)); padding: 48px 0 64px; }
+  .hero { align-items: center; gap: 20px; margin-bottom: 28px; }
+  .brand-mark { flex-basis: 74px; width: 74px; height: 74px; border-radius: 18px; font-size: 27px; }
+  .workspace { grid-template-columns: minmax(0, .88fr) minmax(0, 1.12fr); gap: 24px; }
+  .form-card { padding: 28px; }
+  .result-card { position: sticky; top: 24px; padding: 30px; }
+  .form-card, .result-card { border-radius: 24px; }
+  .pillars-grid { gap: 10px; margin: 28px 0 20px; }
+  .pillar-label { padding: 10px 5px; font-size: .8rem; }
+  .stem, .branch { font-size: clamp(2rem, 6vw, 3.1rem); }
+  .reading-section, .luck-section, .comparison-section { margin-top: 26px; padding: clamp(24px, 4vw, 38px); border-radius: 24px; }
+  .reading-intro { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 25px; }
+  .reading-badge { margin-top: 0; }
+  .insight-grid { grid-template-columns: 1fr 1fr; gap: 14px; }
+  .insight-card > p { min-height: 88px; }
+  .blind-test-card { padding: 28px; border-radius: 24px; }
+}

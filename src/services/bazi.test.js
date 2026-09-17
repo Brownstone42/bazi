@@ -42,4 +42,14 @@ describe('BaZi calculation', () => {
     expect(result.hasBirthTime).toBe(false)
     expect(result.chart.pillars.day).toBeTruthy()
   })
+
+  it('accepts 24-hour time and rejects AM/PM or invalid hours', () => {
+    const input = {
+      birthDate: '04/02/1990', gender: 'male', timezoneId: 'Asia/Bangkok'
+    }
+
+    expect(calculateChart({ ...input, birthTime: '23:30' }).pillars.hour).toBeTruthy()
+    expect(() => calculateChart({ ...input, birthTime: '11:30 PM' })).toThrow('24 ชั่วโมง')
+    expect(() => calculateChart({ ...input, birthTime: '24:00' })).toThrow('24 ชั่วโมง')
+  })
 })

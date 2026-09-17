@@ -22,11 +22,10 @@ function parseBirthDate(value) {
 
 function calculateChartFromTime(form, birthTime) {
   const { year, month, day } = parseBirthDate(form.birthDate)
-  const [hour, minute] = birthTime.split(':').map(Number)
-
-  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
-    throw new Error('เวลาเกิดไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง')
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(birthTime)) {
+    throw new Error('เวลาเกิดไม่ถูกต้อง กรุณากรอกแบบ 24 ชั่วโมง เช่น 23:30')
   }
+  const [hour, minute] = birthTime.split(':').map(Number)
 
   return calculateBaziChart({
     year,

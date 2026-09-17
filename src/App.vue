@@ -365,8 +365,8 @@ submit()
             />
           </label>
           <label class="field">
-            <span>เวลาเกิด</span>
-            <InputText v-model="form.birthTime" type="time" required />
+            <span>เวลาเกิด (รูปแบบ 24 ชั่วโมง)</span>
+            <InputText v-model="form.birthTime" type="text" inputmode="numeric" placeholder="เช่น 23:30" maxlength="5" required />
           </label>
           <label class="field field-wide">
             <span>เพศ</span>
@@ -600,8 +600,8 @@ submit()
             />
           </label>
           <label class="field">
-            <span>เวลาเกิด <small>(ไม่บังคับ)</small></span>
-            <InputText v-model="comparisonForm.birthTime" type="time" />
+            <span>เวลาเกิด (24 ชั่วโมง) <small>(ไม่บังคับ)</small></span>
+            <InputText v-model="comparisonForm.birthTime" type="text" inputmode="numeric" placeholder="เช่น 23:30" maxlength="5" />
             <small v-if="!comparisonForm.birthTime" class="unknown-time-hint"><i class="pi pi-info-circle" /> ไม่ทราบเวลาก็เปรียบเทียบได้ แต่รายละเอียดบางส่วนอาจคลาดเคลื่อน</small>
           </label>
           <label class="field">

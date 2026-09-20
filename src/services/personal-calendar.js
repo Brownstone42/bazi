@@ -12,6 +12,7 @@ const thaiMonths = [
 ]
 
 export const calendarFocusOptions = [
+  { label: 'ภาพรวมทุกเรื่อง', value: 'all', icon: 'pi-sparkles' },
   { label: 'งานและธุรกิจ', value: 'work', icon: 'pi-briefcase' },
   { label: 'การเงิน', value: 'money', icon: 'pi-wallet' },
   { label: 'ความรัก', value: 'love', icon: 'pi-heart' },
@@ -122,9 +123,15 @@ function levelFromScore(score) {
   return 'caution'
 }
 
-function buildDayReading({ year, month, day, chart, assessment, input, focus, currentLuckCycle, todayKey }) {
+function joinThaiList(items) {
+  if (items.length <= 1) return items[0] ?? ''
+  if (items.length === 2) return `${items[0]}และ${items[1]}`
+  return `${items.slice(0, -1).join(', ')} และ${items.at(-1)}`
+}
+
+function buildDayReading({ year, month, day, chart, assessment, input, focus, currentLuckCycle, todayKey, transit: suppliedTransit }) {
   const profile = focusProfiles[focus]
-  const transit = calculateChart({
+  const transit = suppliedTransit ?? calculateChart({
     birthDate: formatDateInput(year, month, day),
     birthTime: '12:00',
     gender: input.gender,
@@ -170,6 +177,9 @@ function buildDayReading({ year, month, day, chart, assessment, input, focus, cu
     isToday: dateKey(year, month, day) === todayKey,
     score: Math.round(score * 10) / 10,
     level,
+    focus,
+    focusLabel: profile.label,
+    status: isPositive ? 'เหมาะเดินหน้า' : level === 'caution' ? 'เพิ่มความระวัง' : 'ใช้ได้เมื่อเตรียมตัว',
     tag,
     headline: `${tag}สำหรับ${profile.label}`,
     summary: context,
@@ -183,6 +193,55 @@ function buildDayReading({ year, month, day, chart, assessment, input, focus, cu
   }
 }
 
+function buildOverviewDay(args) {
+  const transit = calculateChart({
+    birthDate: formatDateInput(args.year, args.month, args.day),
+    birthTime: '12:00',
+    gender: args.input.gender,
+    timezoneId: args.input.timezoneId
+  })
+  const topicReadings = Object.keys(focusProfiles).map((focus) => buildDayReading({ ...args, focus, transit }))
+  const positive = topicReadings.filter((item) => ['strong', 'supportive'].includes(item.level))
+  const caution = topicReadings.filter((item) => item.level === 'caution')
+  const score = topicReadings.reduce((total, item) => total + item.score, 0) / topicReadings.length
+  const level = caution.length >= 2
+    ? 'caution'
+    : positive.length >= 3
+      ? score >= 3 ? 'strong' : 'supportive'
+      : 'balanced'
+  const positiveLabels = joinThaiList(positive.map((item) => item.focusLabel))
+  const cautionLabels = joinThaiList(caution.map((item) => item.focusLabel))
+  const tag = level === 'caution' ? 'ลดความเร่ง' : positive.length >= 3 ? 'หลายเรื่องเดินหน้า' : 'เลือกเรื่องสำคัญ'
+  const summary = positive.length && caution.length
+    ? `วันนี้${positiveLabels}มีจังหวะให้เดินหน้า ขณะที่${cautionLabels}ควรเพิ่มความระมัดระวังและไม่รีบเอาข้อสรุป`
+    : positive.length
+      ? `วันนี้จังหวะโดยรวมสนับสนุน${positiveLabels} ส่วนเรื่องอื่นใช้ได้เมื่อเตรียมตัวและกำหนดเป้าหมายให้ชัด`
+      : caution.length
+        ? `วันนี้ควรลดความเร่งในเรื่อง${cautionLabels} และใช้เวลากับการเตรียมข้อมูลหรือเก็บงานมากกว่าการบังคับผลลัพธ์`
+        : 'วันนี้ภาพรวมอยู่ในระดับกลาง เหมาะกับการทำเรื่องที่เตรียมไว้แล้วมากกว่าการเพิ่มภาระหรือเปลี่ยนแผนกะทันหัน'
+  const dailyAdvice = positive.length && caution.length
+    ? `ใช้จังหวะกับ${positiveLabels}ได้ แต่แยกเวลาออกจากเรื่อง${cautionLabels} อย่านำความเร่งจากเรื่องหนึ่งไปตัดสินอีกเรื่องหนึ่ง`
+    : positive.length
+      ? `เลือกเรื่องสำคัญในด้าน${positiveLabels}หนึ่งเรื่องแล้วเดินหน้าให้เกิดผลลัพธ์ที่ชัด ส่วนเรื่องอื่นรักษาแผนเดิมไว้ก่อน`
+      : caution.length
+        ? `ลดขอบเขตสิ่งที่ต้องตัดสินใจเกี่ยวกับ${cautionLabels} ตรวจเงื่อนไขซ้ำ และเผื่อทางเลือกหากสถานการณ์ไม่เป็นไปตามแผน`
+        : 'จัดลำดับสิ่งสำคัญหนึ่งเรื่อง ลงมือจากข้อมูลที่มี และยังไม่จำเป็นต้องเร่งตัดสินใจในเรื่องที่เงื่อนไขไม่ชัด'
+
+  return {
+    ...topicReadings[0],
+    score: Math.round(score * 10) / 10,
+    level,
+    tag,
+    headline: tag,
+    summary,
+    dailyAdvice,
+    confidence: topicReadings.some((item) => item.confidence === 'ค่อนข้างชัด') ? 'ค่อนข้างชัด' : 'ปานกลาง',
+    topicReadings: topicReadings.map(({ focus, focusLabel, level: topicLevel, status, tag: topicTag }) => ({
+      focus, focusLabel, level: topicLevel, status, tag: topicTag
+    }))
+  }
+}
+
 function todayInTimezone(timezoneId, now) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezoneId,
@@ -192,36 +251,39 @@ function todayInTimezone(timezoneId, now) {
   return { year: read('year'), month: read('month'), day: read('day') }
 }
 
-export function buildPersonalMonth({ chart, assessment, input, year, month, focus = 'work', currentLuckCycle = null, now = new Date() }) {
+export function buildPersonalMonth({ chart, assessment, input, year, month, focus = 'all', currentLuckCycle = null, now = new Date() }) {
   if (!chart || !assessment || !input) return null
   if (!elements.includes(chart.dayMaster.element)) throw new Error('ไม่สามารถอ่านธาตุประจำตัวได้')
-  if (!focusProfiles[focus]) throw new Error('หัวข้อปฏิทินไม่ถูกต้อง')
+  if (focus !== 'all' && !focusProfiles[focus]) throw new Error('หัวข้อปฏิทินไม่ถูกต้อง')
   const today = todayInTimezone(input.timezoneId, now)
   const todayKey = dateKey(today.year, today.month, today.day)
   const count = daysInMonth(year, month)
-  const days = Array.from({ length: count }, (_, index) => buildDayReading({
-    year, month, day: index + 1, chart, assessment, input, focus, currentLuckCycle, todayKey
-  }))
+  const days = Array.from({ length: count }, (_, index) => {
+    const args = { year, month, day: index + 1, chart, assessment, input, currentLuckCycle, todayKey }
+    return focus === 'all' ? buildOverviewDay(args) : buildDayReading({ ...args, focus })
+  })
   const ranked = [...days].sort((a, b) => b.score - a.score || a.day - b.day)
   const recommended = ranked.slice(0, 3)
   const caution = [...days].sort((a, b) => a.score - b.score || a.day - b.day).slice(0, 2)
   const supportiveCount = days.filter((item) => ['strong', 'supportive'].includes(item.level)).length
   const cautionCount = days.filter((item) => item.level === 'caution').length
-  const profile = focusProfiles[focus]
+  const focusLabel = focus === 'all' ? 'ภาพรวมทุกเรื่อง' : focusProfiles[focus].label
 
   return {
     year,
     month,
     monthLabel: `${thaiMonths[month - 1]} ${year + 543}`,
     focus,
-    focusLabel: profile.label,
+    focusLabel,
     leadingBlanks: mondayFirstWeekday(year, month),
     days,
     recommended,
     caution,
-    summary: supportiveCount >= cautionCount
-      ? `เดือนนี้มีจังหวะให้เดินหน้าเรื่อง${profile.label}เป็นระยะ เลือกใช้วันที่เด่นกับเรื่องสำคัญ และใช้วันกลาง ๆ สำหรับเตรียมข้อมูลหรือเก็บงาน`
-      : `เดือนนี้เรื่อง${profile.label}ต้องอาศัยการวางแผนมากกว่าการเร่งผล เลือกวันสำคัญอย่างตั้งใจและเผื่อทางเลือกเมื่อเงื่อนไขเปลี่ยน`,
+    summary: focus === 'all'
+      ? 'ภาพรวมเดือนนี้ไม่ได้ดีหรือควรระวังพร้อมกันทุกด้าน กดแต่ละวันเพื่อดูว่างาน เงิน ความรัก การเจรจา และการพักอยู่ในจังหวะแบบใด'
+      : supportiveCount >= cautionCount
+        ? `เดือนนี้มีจังหวะให้เดินหน้าเรื่อง${focusLabel}เป็นระยะ เลือกใช้วันที่เด่นกับเรื่องสำคัญ และใช้วันกลาง ๆ สำหรับเตรียมข้อมูลหรือเก็บงาน`
+        : `เดือนนี้เรื่อง${focusLabel}ต้องอาศัยการวางแผนมากกว่าการเร่งผล เลือกวันสำคัญอย่างตั้งใจและเผื่อทางเลือกเมื่อเงื่อนไขเปลี่ยน`,
     counts: { supportive: supportiveCount, caution: cautionCount }
   }
 }

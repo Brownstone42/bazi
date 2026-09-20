@@ -126,7 +126,7 @@ const comparisonResult = ref(null)
 const comparisonError = ref('')
 const activeView = ref(viewFromHash())
 const luckTrack = ref(null)
-const calendarFocus = ref('work')
+const calendarFocus = ref('all')
 const selectedCalendarDayKey = ref(null)
 const calendarCursor = reactive({ year: new Date().getFullYear(), month: new Date().getMonth() + 1 })
 const calendarWeekdays = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา']
@@ -766,7 +766,7 @@ submit()
       </div>
 
       <label class="field calendar-focus-field">
-        <span>เดือนนี้คุณอยากวางแผนเรื่องอะไร?</span>
+        <span>อยากดูภาพรวมหรือเจาะเรื่องไหน?</span>
         <Select v-model="calendarFocus" :options="calendarFocusOptions" option-label="label" option-value="value" />
       </label>
 
@@ -838,6 +838,13 @@ submit()
           <small>{{ selectedCalendarDay.confidence }}</small>
         </div>
         <p class="daily-summary">{{ selectedCalendarDay.summary }}</p>
+        <div v-if="selectedCalendarDay.topicReadings" class="daily-topic-grid">
+          <div v-for="topic in selectedCalendarDay.topicReadings" :key="topic.focus" :class="topic.level">
+            <span>{{ topic.focusLabel }}</span>
+            <strong>{{ topic.status }}</strong>
+            <small>{{ topic.tag }}</small>
+          </div>
+        </div>
         <div class="daily-advice">
           <span><i class="pi pi-compass" /> คำแนะนำสำหรับวันนี้</span>
           <p>{{ selectedCalendarDay.dailyAdvice }}</p>

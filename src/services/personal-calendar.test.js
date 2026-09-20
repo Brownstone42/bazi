@@ -39,6 +39,19 @@ describe('personal calendar', () => {
     expect(work.days.map((day) => day.score)).not.toEqual(love.days.map((day) => day.score))
   })
 
+  it('uses an all-topics overview by default and keeps each topic visible', () => {
+    const chart = calculateChart(input)
+    const assessment = assessDayMasterStrength(chart)
+    const month = buildPersonalMonth({ chart, assessment, input, year: 2026, month: 9 })
+
+    expect(month.focus).toBe('all')
+    expect(month.focusLabel).toBe('ภาพรวมทุกเรื่อง')
+    expect(month.days.every((day) => day.topicReadings?.length === 5)).toBe(true)
+    expect(month.days[0].topicReadings.map((topic) => topic.focus)).toEqual([
+      'work', 'money', 'love', 'communication', 'wellbeing'
+    ])
+  })
+
   it('moves across year boundaries', () => {
     expect(shiftCalendarMonth(2026, 12, 1)).toEqual({ year: 2027, month: 1 })
     expect(shiftCalendarMonth(2026, 1, -1)).toEqual({ year: 2025, month: 12 })

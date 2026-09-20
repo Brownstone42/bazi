@@ -211,13 +211,9 @@ h1 { margin-bottom: 5px; color: #3b161b; font-family: Georgia, "Noto Serif Thai"
 .daily-reading-heading p { margin: 0; color: #e7cfae; font-size: .74rem; font-weight: 700; }
 .daily-reading-heading > small { flex: 0 0 auto; padding: 6px 8px; color: #ead7bb; background: rgba(255,255,255,.08); border-radius: 999px; font-size: .58rem; }
 .daily-summary { margin: 15px 0 0; color: #eadfce; font-size: .78rem; line-height: 1.7; }
-.daily-actions { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 13px; }
-.daily-actions > div { padding: 13px; background: rgba(255,255,255,.07); border-radius: 12px; }
-.daily-actions span, .daily-must-do span { display: block; margin-bottom: 5px; color: #bcd2a9; font-size: .67rem; font-weight: 800; }
-.daily-actions .negative span { color: #e5ada6; }
-.daily-actions p, .daily-must-do p { margin: 0; color: #f0e3d2; font-size: .74rem; line-height: 1.65; }
-.daily-must-do { margin-top: 8px; padding: 13px; background: rgba(224,189,137,.12); border: 1px solid rgba(224,189,137,.18); border-radius: 12px; }
-.daily-must-do span { color: #e3c28f; }
+.daily-advice { margin-top: 13px; padding: 14px; background: rgba(224,189,137,.12); border: 1px solid rgba(224,189,137,.18); border-radius: 12px; }
+.daily-advice span { display: block; margin-bottom: 6px; color: #e3c28f; font-size: .68rem; font-weight: 800; }
+.daily-advice p { margin: 0; color: #f0e3d2; font-size: .76rem; line-height: 1.7; }
 .calendar-note { margin: 12px 0 0; color: #84766d; font-size: .7rem; line-height: 1.5; }
 .calendar-note i { margin-right: 5px; color: #97652c; }
 
@@ -358,7 +354,6 @@ h1 { margin-bottom: 5px; color: #3b161b; font-family: Georgia, "Noto Serif Thai"
   .calendar-day > i { margin-top: 6px; }
   .calendar-day > small { display: block; width: 100%; }
   .calendar-day.today::after { top: 7px; right: 6px; font-size: .52rem; }
-  .daily-actions { grid-template-columns: 1fr 1fr; }
   .luck-carousel { width: 100%; margin-inline: auto; }
 }
 

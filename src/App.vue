@@ -838,13 +838,9 @@ submit()
           <small>{{ selectedCalendarDay.confidence }}</small>
         </div>
         <p class="daily-summary">{{ selectedCalendarDay.summary }}</p>
-        <div class="daily-actions">
-          <div class="positive"><span><i class="pi pi-check-circle" /> วันนี้ควรทำ</span><p>{{ selectedCalendarDay.shouldDo }}</p></div>
-          <div class="negative"><span><i class="pi pi-times-circle" /> วันนี้ควรหลีกเลี่ยง</span><p>{{ selectedCalendarDay.shouldAvoid }}</p></div>
-        </div>
-        <div class="daily-must-do">
-          <span><i class="pi pi-compass" /> ถ้าจำเป็นต้องทำวันนี้</span>
-          <p>{{ selectedCalendarDay.ifMust }}</p>
+        <div class="daily-advice">
+          <span><i class="pi pi-compass" /> คำแนะนำสำหรับวันนี้</span>
+          <p>{{ selectedCalendarDay.dailyAdvice }}</p>
         </div>
       </article>
 

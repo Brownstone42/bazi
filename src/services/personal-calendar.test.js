@@ -23,7 +23,8 @@ describe('personal calendar', () => {
     expect(month.days.find((day) => day.isToday)?.day).toBe(20)
     expect(month.recommended).toHaveLength(3)
     expect(month.caution).toHaveLength(2)
-    expect(month.days.every((day) => day.shouldDo && day.shouldAvoid && day.ifMust)).toBe(true)
+    expect(month.days.every((day) => day.dailyAdvice)).toBe(true)
+    expect(new Set(month.days.map((day) => day.dailyAdvice)).size).toBeGreaterThanOrEqual(5)
     expect(new Set(month.days.map((day) => day.level)).size).toBeGreaterThan(1)
     expect(month.days.some((day) => day.summary.includes('แรงเสียดทาน'))).toBe(true)
   })
@@ -34,7 +35,7 @@ describe('personal calendar', () => {
     const work = buildPersonalMonth({ chart, assessment, input, year: 2026, month: 9, focus: 'work' })
     const love = buildPersonalMonth({ chart, assessment, input, year: 2026, month: 9, focus: 'love' })
 
-    expect(work.days[0].shouldDo).not.toBe(love.days[0].shouldDo)
+    expect(work.days[0].dailyAdvice).not.toBe(love.days[0].dailyAdvice)
     expect(work.days.map((day) => day.score)).not.toEqual(love.days.map((day) => day.score))
   })
 

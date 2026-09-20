@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { calculateChart } from './bazi'
 import {
   buildLuckPillarTimeline,
+  describeLuckPattern,
   formatLuckStartOffset,
   interpretLuckPillar,
   interpretCurrentLuckPillar
@@ -63,6 +64,9 @@ describe('ถนนสิบปี', () => {
 
     expect(reading.ganZhi).toBe('戊辰')
     expect(reading.headline).toContain('การยืนด้วยตนเอง')
+    expect(reading.visiblePattern).toBeTruthy()
+    expect(reading.innerDrive).toBeTruthy()
+    expect(reading.headline).not.toMatch(/นำหน้า|เป็นฐาน/)
     expect(reading.incomingEnergy).toContain('ก้านฟ้า 戊')
     expect(reading.activatedAreas).toContain('เสาวัน')
     expect(reading.cautionFactors).toContain('ยืนยันวิธีของตนเอง')
@@ -101,6 +105,8 @@ describe('ถนนสิบปี', () => {
       const reading = interpretLuckPillar(chart, assessment, cycle)
       const publicText = [
         reading.headline,
+        reading.visiblePattern,
+        reading.innerDrive,
         reading.summary,
         reading.keyThemes,
         reading.workOutlook,
@@ -115,6 +121,14 @@ describe('ถนนสิบปี', () => {
       expect(reading.moneyOutlook.length).toBeGreaterThan(40)
       expect(reading.relationshipOutlook.length).toBeGreaterThan(40)
     })
+  })
+
+  it('อธิบายสิ่งที่แสดงออกและแรงขับภายในด้วยภาษาที่เข้าใจง่าย', () => {
+    const pattern = describeLuckPattern('偏印', '七杀')
+
+    expect(pattern.visiblePattern).toContain('ความรู้เฉพาะทาง')
+    expect(pattern.innerDrive).toContain('เมื่อเจอแรงกดดัน')
+    expect(pattern.headline).not.toMatch(/นำหน้า|เป็นฐาน/)
   })
 
   it('อ่านช่วงอดีตหรืออนาคตที่ผู้ใช้เลือกได้', () => {

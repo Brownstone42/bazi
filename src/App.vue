@@ -781,9 +781,14 @@ submit()
         <div class="current-luck-heading">
           <div>
             <span>{{ selectedLuckReading.isCurrent ? 'ช่วงชีวิตปัจจุบัน' : `ช่วงชีวิตที่ ${selectedLuckReading.index}` }}</span>
-            <h3>{{ selectedLuckReading.headline }}</h3>
+            <h3>รูปแบบของช่วงชีวิตนี้</h3>
           </div>
           <small>อายุ {{ selectedLuckReading.ageRange }}<br />ค.ศ. {{ selectedLuckReading.yearRange }}</small>
+        </div>
+
+        <div class="current-luck-patterns">
+          <div><span>สิ่งที่แสดงออก</span><p>{{ selectedLuckReading.visiblePattern }}</p></div>
+          <div><span>แรงขับภายใน</span><p>{{ selectedLuckReading.innerDrive }}</p></div>
         </div>
 
         <div class="current-luck-grid">

@@ -46,6 +46,8 @@ const tenGodThai = {
 const tenGodProfiles = {
   比肩: {
     label: 'การยืนด้วยตนเอง',
+    expression: 'คุณมีแนวโน้มยืนด้วยตัวเอง รับบทนำ และตัดสินใจด้วยวิธีของตนชัดขึ้น',
+    innerDrive: 'ความต้องการพึ่งพาตนเองและรักษาพื้นที่ของตัวเองเป็นแรงขับสำคัญ',
     visible: 'ความเป็นตัวของตัวเอง การรับบทนำ และการตัดสินใจด้วยตนเองเด่นขึ้น',
     foundation: 'ฐานของช่วงนี้ให้ความสำคัญกับความมั่นคงในตัวเองและคนที่มีสถานะใกล้เคียงกัน',
     opportunity: 'สร้างฐานที่พึ่งพาตนเองได้และร่วมมือกับคนที่เคารพขอบเขตกัน',
@@ -57,6 +59,8 @@ const tenGodProfiles = {
   },
   劫财: {
     label: 'การร่วมมือและการแข่งขัน',
+    expression: 'คุณมีแนวโน้มเข้าหาผู้คน ร่วมมือ และแข่งขันเพื่อให้ได้ทรัพยากรหรือโอกาส',
+    innerDrive: 'ความต้องการมีพวกพ้องและไม่เสียเปรียบเรื่องพื้นที่หรือผลประโยชน์เป็นแรงขับสำคัญ',
     visible: 'การรวมกลุ่ม การแข่งขัน และการแบ่งทรัพยากรกับคนรอบตัวปรากฏชัดขึ้น',
     foundation: 'ฐานของช่วงนี้มีทั้งแรงหนุนจากพวกพ้องและแรงแย่งพื้นที่หรือผลประโยชน์',
     opportunity: 'ทำความรู้จักผู้คนเพิ่มขึ้นและร่วมมือกับคนที่มีความสามารถเสริมกัน',
@@ -68,6 +72,8 @@ const tenGodProfiles = {
   },
   食神: {
     label: 'ผลงานที่ค่อย ๆ เติบโต',
+    expression: 'คุณมีแนวโน้มแสดงความสามารถผ่านการสร้างผลงาน ถ่ายทอด และทำเรื่องยากให้เข้าใจง่าย',
+    innerDrive: 'ความต้องการสร้างสิ่งที่ค่อย ๆ เติบโตและมีคุณภาพเป็นแรงขับสำคัญ',
     visible: 'ความสามารถในการสร้างผลงาน ถ่ายทอด และทำสิ่งยากให้เข้าใจง่ายถูกนำออกมาใช้',
     foundation: 'ฐานของช่วงนี้สนับสนุนการผลิตผลงานอย่างต่อเนื่องและการดูแลคุณภาพชีวิต',
     opportunity: 'เปลี่ยนความถนัดให้เป็นผลงานที่เติบโตได้อย่างสม่ำเสมอ',
@@ -79,6 +85,8 @@ const tenGodProfiles = {
   },
   伤官: {
     label: 'การท้าทายกรอบเดิม',
+    expression: 'คุณมีแนวโน้มตั้งคำถาม พูดตรง และเสนอวิธีใหม่เมื่อสิ่งเดิมไม่ตอบโจทย์',
+    innerDrive: 'ความต้องการคิดและทำด้วยวิธีของตนเองเป็นแรงขับสำคัญ',
     visible: 'ความคิดวิพากษ์ การสื่อสารตรง และความต้องการปรับสิ่งที่ไม่ตอบโจทย์เด่นขึ้น',
     foundation: 'ฐานของช่วงนี้ผลักให้หาวิธีของตนเองมากกว่าทำตามรูปแบบเดิมทั้งหมด',
     opportunity: 'ใช้มุมมองที่ต่างเพื่อแก้ปัญหาและสร้างผลงานที่มีลายเซ็นของตนเอง',
@@ -90,6 +98,8 @@ const tenGodProfiles = {
   },
   偏财: {
     label: 'โอกาสจากตลาดและผู้คน',
+    expression: 'คุณมีแนวโน้มมองหาโอกาสผ่านลูกค้า ผู้คน และการเจรจามากขึ้น',
+    innerDrive: 'ความต้องการเปิดทางเลือกใหม่และจัดการโอกาสให้ทันจังหวะเป็นแรงขับสำคัญ',
     visible: 'โอกาสจากลูกค้า คนรู้จัก การต่อรอง และทรัพยากรที่หมุนเร็วเข้ามามีบทบาท',
     foundation: 'ฐานของช่วงนี้เปิดรับโอกาสหลายทางและต้องอาศัยความคล่องตัวในการจัดการ',
     opportunity: 'ใช้ความสัมพันธ์และการมองเห็นโอกาสเพื่อสร้างมูลค่าจากสิ่งที่มี',
@@ -101,6 +111,8 @@ const tenGodProfiles = {
   },
   正财: {
     label: 'รายได้และภาระที่จับต้องได้',
+    expression: 'คุณมีแนวโน้มให้ความสำคัญกับรายได้ ทรัพย์สิน และความรับผิดชอบที่วัดผลได้',
+    innerDrive: 'ความต้องการความมั่นคง วินัย และผลลัพธ์ที่จับต้องได้เป็นแรงขับสำคัญ',
     visible: 'การจัดการรายได้ ทรัพย์สิน งานประจำ และความรับผิดชอบที่วัดผลได้เด่นขึ้น',
     foundation: 'ฐานของช่วงนี้ต้องการความสม่ำเสมอ วินัย และการบริหารสิ่งที่มีอยู่จริง',
     opportunity: 'สร้างความมั่นคงจากระบบรายรับรายจ่ายและงานที่ให้ผลต่อเนื่อง',
@@ -112,6 +124,8 @@ const tenGodProfiles = {
   },
   七杀: {
     label: 'แรงกดดันที่เร่งการตัดสินใจ',
+    expression: 'คุณมีแนวโน้มตอบสนองต่อโจทย์เร่งด่วน การแข่งขัน และความไม่แน่นอนอย่างเด็ดขาดขึ้น',
+    innerDrive: 'เมื่อเจอแรงกดดัน คุณมีแนวโน้มตัดสินใจเร็วขึ้นและอยากควบคุมสถานการณ์ให้ได้',
     visible: 'โจทย์ที่ต้องตัดสินใจเร็ว แข่งขัน หรือรับมือกับอำนาจและความไม่แน่นอนเด่นขึ้น',
     foundation: 'ฐานของช่วงนี้สร้างแรงผลักสูง จึงให้ทั้งความกล้าและความตึงเครียด',
     opportunity: 'ฝึกความเด็ดขาดและรับบทที่ต้องแก้ปัญหาภายใต้ข้อจำกัด',
@@ -123,6 +137,8 @@ const tenGodProfiles = {
   },
   正官: {
     label: 'บทบาทและมาตรฐาน',
+    expression: 'คุณมีแนวโน้มใส่ใจกับหน้าที่ กติกา และการรักษาความน่าเชื่อถือมากขึ้น',
+    innerDrive: 'ความต้องการทำสิ่งต่าง ๆ ให้ถูกต้อง มีระเบียบ และตรวจสอบได้เป็นแรงขับสำคัญ',
     visible: 'หน้าที่ กติกา ตำแหน่ง และความน่าเชื่อถือในระบบถูกเน้นให้เห็นชัด',
     foundation: 'ฐานของช่วงนี้ต้องการระเบียบ ความรับผิดชอบ และการทำสิ่งต่าง ๆ ให้ตรวจสอบได้',
     opportunity: 'สร้างชื่อจากมาตรฐานที่สม่ำเสมอและการรับผิดชอบต่อบทบาท',
@@ -134,6 +150,8 @@ const tenGodProfiles = {
   },
   偏印: {
     label: 'การปรับตัวด้วยความรู้เฉพาะ',
+    expression: 'คุณปรับตัวโดยใช้ความรู้เฉพาะทาง มุมมองของตนเอง และข้อมูลที่คนอื่นอาจมองข้าม',
+    innerDrive: 'ความต้องการเข้าใจสิ่งต่าง ๆ ด้วยวิธีของตนเองและหาทางที่ไม่เป็นเส้นตรงเป็นแรงขับสำคัญ',
     visible: 'การเรียนรู้ทางลัด มุมมองเฉพาะตัว และการแก้ปัญหาจากข้อมูลที่คนอื่นมองข้ามเด่นขึ้น',
     foundation: 'ฐานของช่วงนี้ต้องอาศัยการสังเกต การปรับตัว และความรู้ที่ไม่เป็นเส้นตรง',
     opportunity: 'พัฒนาความเชี่ยวชาญเฉพาะและใช้มุมมองใหม่กับปัญหาเดิม',
@@ -145,6 +163,8 @@ const tenGodProfiles = {
   },
   正印: {
     label: 'การเรียนรู้และแรงสนับสนุน',
+    expression: 'คุณมีแนวโน้มเรียนรู้ ขอคำแนะนำ และใช้ระบบสนับสนุนเพื่อสร้างความมั่นคง',
+    innerDrive: 'ความต้องการมีความรู้ ความพร้อม และสิ่งรองรับก่อนเดินหน้าเป็นแรงขับสำคัญ',
     visible: 'ความรู้ ผู้สนับสนุน เอกสาร และระบบที่ช่วยรองรับการเติบโตเข้ามามีบทบาท',
     foundation: 'ฐานของช่วงนี้เหมาะกับการสะสมความรู้ ฟื้นกำลัง และสร้างความมั่นคงเบื้องหลัง',
     opportunity: 'ใช้ผู้รู้ ระบบ และการเรียนที่มีโครงสร้างเพื่อยกระดับฐานของตนเอง',
@@ -458,6 +478,19 @@ function buildPublicReadings(profiles, interactions, stage) {
   }
 }
 
+export function describeLuckPattern(stemTenGod, branchTenGod) {
+  const stemProfile = tenGodProfiles[stemTenGod]
+  const branchProfile = tenGodProfiles[branchTenGod]
+
+  return {
+    headline: stemProfile === branchProfile
+      ? `${stemProfile.label}เด่นทั้งสิ่งที่แสดงออกและแรงขับภายใน`
+      : `${stemProfile.label}ทำงานร่วมกับ${branchProfile.label}`,
+    visiblePattern: stemProfile.expression,
+    innerDrive: branchProfile.innerDrive
+  }
+}
+
 export function interpretLuckPillar(chart, assessment, cycle) {
   if (!cycle) return null
 
@@ -472,6 +505,7 @@ export function interpretLuckPillar(chart, assessment, cycle) {
   const affectedPositions = [...new Set(interactionDetails.flatMap((item) => Array.isArray(item.position) ? item.position : [item.position]).filter(Boolean))]
   const stage = getLifeStage(cycle)
   const publicReadings = buildPublicReadings(profiles, interactionDetails, stage)
+  const luckPattern = describeLuckPattern(cycle.stemTenGod, cycle.branchTenGod)
   const hiddenDescription = hiddenStems
     .map((item) => `${item.stem} ${tenGodThaiLabel(item.tenGod)}${item.isMain ? ' ซึ่งเป็นพลังหลัก' : ''}`)
     .join(', ')
@@ -491,9 +525,7 @@ export function interpretLuckPillar(chart, assessment, cycle) {
     isCurrent: cycle.isCurrent,
     ageRange: `${cycle.startAge}–${cycle.endAge} ปี`,
     yearRange: `${cycle.startYear}–${cycle.endYear}`,
-    headline: stemProfile === branchProfile
-      ? `${stemProfile.label}เป็นแกนหลักของช่วงนี้`
-      : `${stemProfile.label}นำหน้า · ${branchProfile.label}เป็นฐาน`,
+    ...luckPattern,
     summary: `ใน${stage.label} ประเด็นหลักคือ${stemProfile.label}${stemProfile !== branchProfile ? `ควบคู่กับ${branchProfile.label}` : ''}${interactions.length ? ` โดยมี ${affectedPositions.length} ด้านของชีวิตที่ต้องใส่ใจเป็นพิเศษ` : ''}`,
     incomingEnergy: `ก้านฟ้า ${cycle.stem} เป็น${tenGodThaiLabel(cycle.stemTenGod)}: ${stemProfile.visible} กิ่งดิน ${cycle.branch} เป็น${tenGodThaiLabel(cycle.branchTenGod)}: ${branchProfile.foundation} ภายในกิ่งนี้ซ่อน ${hiddenDescription}`,
     natalInteraction: interactionSummary,

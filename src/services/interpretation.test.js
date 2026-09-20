@@ -56,6 +56,8 @@ describe('natal chart interpretation', () => {
     expect(strong.cards.map((card) => card.text)).not.toEqual(weak.cards.map((card) => card.text))
     expect(strong.lifeAreas.find((area) => area.id === 'wellbeing')?.text)
       .not.toBe(weak.lifeAreas.find((area) => area.id === 'wellbeing')?.text)
+    expect(strong.lifeAreas.find((area) => area.id === 'wellbeing')?.shouldAvoid)
+      .not.toBe(weak.lifeAreas.find((area) => area.id === 'wellbeing')?.shouldAvoid)
   })
 
   it('keeps customer-facing life readings free from technical astrology terms', () => {
@@ -77,5 +79,19 @@ describe('natal chart interpretation', () => {
     ]).filter(Boolean).join(' ')
 
     expect(publicText).not.toMatch(/ดิถี|ก้านฟ้า|กิ่งดิน|สิบเทพ|ธาตุให้คุณ|[一-龥]/)
+  })
+
+  it('keeps the health disclaimer separate from personalized avoidance guidance', () => {
+    const chart = calculateChart({
+      birthDate: '26/08/1989',
+      birthTime: '11:30',
+      gender: 'male',
+      timezoneId: 'Asia/Bangkok'
+    })
+    const wellbeing = interpretNatalChart(chart).lifeAreas.find((area) => area.id === 'wellbeing')
+
+    expect(wellbeing.shouldAvoid).not.toMatch(/วินิจฉัยโรค|ปรับยา|พบแพทย์/)
+    expect(wellbeing.shouldAvoid.length).toBeGreaterThan(60)
+    expect(wellbeing.disclaimer).toContain('ปรึกษาแพทย์')
   })
 })

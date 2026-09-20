@@ -19,6 +19,7 @@ import { createBlindTest, evaluateBlindTest } from './services/blind-test'
 import { buildLuckPillarTimeline, interpretLuckPillar } from './services/luck-pillars'
 import { interpretCompatibility } from './services/compatibility'
 import { pickerDateToTimeString, timeStringToPickerDate } from './services/time-input'
+import { buildPersonalMonth, calendarFocusOptions, shiftCalendarMonth } from './services/personal-calendar'
 
 const isBlindTestMode = new URLSearchParams(window.location.search).get('mode') === 'blind-test'
 
@@ -125,6 +126,10 @@ const comparisonResult = ref(null)
 const comparisonError = ref('')
 const activeView = ref(viewFromHash())
 const luckTrack = ref(null)
+const calendarFocus = ref('work')
+const selectedCalendarDayKey = ref(null)
+const calendarCursor = reactive({ year: new Date().getFullYear(), month: new Date().getMonth() + 1 })
+const calendarWeekdays = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา']
 
 const blindFocusOptions = [
   { label: 'ภาพรวมบุคลิก', value: 'identity' },
@@ -163,9 +168,28 @@ const availableComparisonFocusOptions = computed(() => {
   const allowed = focusByRelationship[comparisonForm.relationship] ?? ['overview']
   return comparisonFocusOptions.filter((item) => allowed.includes(item.value))
 })
+const personalMonth = computed(() => chart.value && strength.value && calculatedInput.value
+  ? buildPersonalMonth({
+      chart: chart.value,
+      assessment: strength.value,
+      input: calculatedInput.value,
+      year: calendarCursor.year,
+      month: calendarCursor.month,
+      focus: calendarFocus.value,
+      currentLuckCycle: luckTimeline.value?.cycles.find((cycle) => cycle.isCurrent) ?? null
+    })
+  : null)
+const selectedCalendarDay = computed(() => {
+  const days = personalMonth.value?.days ?? []
+  return days.find((day) => day.key === selectedCalendarDayKey.value) ??
+    days.find((day) => day.isToday) ??
+    days[0] ??
+    null
+})
 
 function viewFromHash() {
   if (window.location.hash === '#luck') return 'luck'
+  if (window.location.hash === '#calendar') return 'calendar'
   if (window.location.hash === '#compare') return 'compare'
   return 'profile'
 }
@@ -208,8 +232,19 @@ function moveLuckCycle(direction) {
 
 function setActiveView(view) {
   activeView.value = view
-  window.location.hash = view === 'luck' ? 'luck' : view === 'compare' ? 'compare' : 'profile'
+  window.location.hash = view === 'luck' ? 'luck' : view === 'calendar' ? 'calendar' : view === 'compare' ? 'compare' : 'profile'
   window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+function moveCalendarMonth(amount) {
+  const shifted = shiftCalendarMonth(calendarCursor.year, calendarCursor.month, amount)
+  calendarCursor.year = shifted.year
+  calendarCursor.month = shifted.month
+  selectedCalendarDayKey.value = null
+}
+
+function selectCalendarDay(day) {
+  selectedCalendarDayKey.value = day.key
 }
 
 function syncViewFromHash() {
@@ -294,6 +329,10 @@ watch(() => comparisonForm.relationship, () => {
   comparisonResult.value = null
 })
 
+watch(calendarFocus, () => {
+  selectedCalendarDayKey.value = null
+})
+
 onMounted(() => {
   window.addEventListener('hashchange', syncViewFromHash)
   window.addEventListener('resize', handleViewportResize)
@@ -338,6 +377,15 @@ submit()
       >
         <i class="pi pi-chart-line" />
         <span><strong>จังหวะชีวิต 10 ปี</strong><small>แนวโน้มในแต่ละช่วงวัย</small></span>
+      </button>
+      <button
+        type="button"
+        :class="{ active: activeView === 'calendar' }"
+        :aria-current="activeView === 'calendar' ? 'page' : undefined"
+        @click="setActiveView('calendar')"
+      >
+        <i class="pi pi-calendar" />
+        <span><strong>ปฏิทินของฉัน</strong><small>วางแผนรายเดือนและรายวัน</small></span>
       </button>
       <button
         type="button"
@@ -696,6 +744,111 @@ submit()
 
         <p class="comparison-disclaimer">คำอ่านนี้แสดงแนวโน้มของวิธีตอบสนองต่อกัน ไม่ได้ตัดสินว่าความสัมพันธ์ใดดีหรือไม่ดีตายตัว</p>
       </article>
+    </section>
+
+    <section v-if="personalMonth && !isBlindTestMode && activeView === 'calendar'" class="calendar-section">
+      <div class="view-profile-summary">
+        <div>
+          <span>ปฏิทินนี้คำนวณสำหรับ</span>
+          <strong>{{ calculatedInput.birthDate }} · {{ calculatedInput.birthTime }} · {{ calculatedInput.gender === 'male' ? 'ชาย' : 'หญิง' }}</strong>
+          <small>{{ calculatedInput.timezoneId }}</small>
+        </div>
+        <button type="button" @click="setActiveView('profile')"><i class="pi pi-pencil" /> แก้ไขข้อมูล</button>
+      </div>
+
+      <div class="calendar-heading">
+        <div>
+          <p class="eyebrow">PERSONAL DECISION CALENDAR</p>
+          <h2>ปฏิทินช่วยวางแผนของคุณ</h2>
+          <p>เลือกเรื่องที่กำลังสนใจ แล้วดูว่าแต่ละวันเหมาะกับการเดินหน้า เตรียมตัว หรือเพิ่มความระมัดระวังอย่างไร</p>
+        </div>
+        <span class="premium-badge"><i class="pi pi-sparkles" /> ตัวอย่างสำหรับสมาชิก</span>
+      </div>
+
+      <label class="field calendar-focus-field">
+        <span>เดือนนี้คุณอยากวางแผนเรื่องอะไร?</span>
+        <Select v-model="calendarFocus" :options="calendarFocusOptions" option-label="label" option-value="value" />
+      </label>
+
+      <article class="calendar-month-summary">
+        <span>ภาพรวม {{ personalMonth.monthLabel }}</span>
+        <h3>{{ personalMonth.focusLabel }}</h3>
+        <p>{{ personalMonth.summary }}</p>
+        <div class="calendar-month-counts">
+          <b><i class="pi pi-arrow-up-right" /> วันที่เหมาะเดินหน้า {{ personalMonth.counts.supportive }} วัน</b>
+          <b><i class="pi pi-shield" /> วันที่ควรเพิ่มความระวัง {{ personalMonth.counts.caution }} วัน</b>
+        </div>
+      </article>
+
+      <div class="calendar-highlights">
+        <div>
+          <span>วันที่น่าใช้กับเรื่องสำคัญ</span>
+          <button v-for="day in personalMonth.recommended" :key="day.key" type="button" @click="selectCalendarDay(day)">
+            {{ day.day }} <small>{{ day.tag }}</small>
+          </button>
+        </div>
+        <div class="caution">
+          <span>วันที่ควรวางแผนเผื่อไว้</span>
+          <button v-for="day in personalMonth.caution" :key="day.key" type="button" @click="selectCalendarDay(day)">
+            {{ day.day }} <small>{{ day.tag }}</small>
+          </button>
+        </div>
+      </div>
+
+      <div class="calendar-panel">
+        <div class="calendar-toolbar">
+          <button type="button" aria-label="เดือนก่อนหน้า" @click="moveCalendarMonth(-1)"><i class="pi pi-chevron-left" /></button>
+          <strong>{{ personalMonth.monthLabel }}</strong>
+          <button type="button" aria-label="เดือนถัดไป" @click="moveCalendarMonth(1)"><i class="pi pi-chevron-right" /></button>
+        </div>
+        <div class="calendar-grid calendar-weekdays">
+          <span v-for="weekday in calendarWeekdays" :key="weekday">{{ weekday }}</span>
+        </div>
+        <div class="calendar-grid calendar-days">
+          <span v-for="blank in personalMonth.leadingBlanks" :key="`blank-${blank}`" class="calendar-blank" />
+          <button
+            v-for="day in personalMonth.days"
+            :key="day.key"
+            type="button"
+            class="calendar-day"
+            :class="[day.level, { selected: selectedCalendarDay?.key === day.key, today: day.isToday }]"
+            :aria-label="`วันที่ ${day.day} ${day.tag}`"
+            :aria-pressed="selectedCalendarDay?.key === day.key"
+            @click="selectCalendarDay(day)"
+          >
+            <span>{{ day.day }}</span>
+            <i />
+            <small>{{ day.tag }}</small>
+          </button>
+        </div>
+        <div class="calendar-legend">
+          <span><i class="strong" /> เหมาะเดินหน้า</span>
+          <span><i class="balanced" /> ใช้ได้เมื่อเตรียมตัว</span>
+          <span><i class="caution" /> เพิ่มความระวัง</span>
+        </div>
+      </div>
+
+      <article v-if="selectedCalendarDay" class="daily-reading">
+        <div class="daily-reading-heading">
+          <div>
+            <span>{{ selectedCalendarDay.isToday ? 'วันนี้' : 'คำแนะนำประจำวันที่เลือก' }}</span>
+            <h3>{{ selectedCalendarDay.day }} {{ personalMonth.monthLabel }}</h3>
+            <p>{{ selectedCalendarDay.headline }}</p>
+          </div>
+          <small>{{ selectedCalendarDay.confidence }}</small>
+        </div>
+        <p class="daily-summary">{{ selectedCalendarDay.summary }}</p>
+        <div class="daily-actions">
+          <div class="positive"><span><i class="pi pi-check-circle" /> วันนี้ควรทำ</span><p>{{ selectedCalendarDay.shouldDo }}</p></div>
+          <div class="negative"><span><i class="pi pi-times-circle" /> วันนี้ควรหลีกเลี่ยง</span><p>{{ selectedCalendarDay.shouldAvoid }}</p></div>
+        </div>
+        <div class="daily-must-do">
+          <span><i class="pi pi-compass" /> ถ้าจำเป็นต้องทำวันนี้</span>
+          <p>{{ selectedCalendarDay.ifMust }}</p>
+        </div>
+      </article>
+
+      <p class="calendar-note"><i class="pi pi-info-circle" /> ปฏิทินนี้แสดงจังหวะที่สัมพันธ์กับพื้นดวงและช่วงชีวิตของคุณ ไม่ได้รับประกันผลลัพธ์ของเหตุการณ์</p>
     </section>
 
     <section v-if="luckTimeline && !isBlindTestMode && activeView === 'luck'" class="luck-section">

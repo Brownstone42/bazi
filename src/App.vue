@@ -28,9 +28,11 @@ import {
   comparisonBalance,
   consumeComparison
 } from './services/access-control'
+import { initializeLineSession } from './services/liff-auth'
 
 const isBlindTestMode = new URLSearchParams(window.location.search).get('mode') === 'blind-test'
 const previewPlan = new URLSearchParams(window.location.search).get('preview')
+const liffId = import.meta.env.VITE_LIFF_ID
 
 const form = reactive({
   birthDate: '26/08/1989',
@@ -143,6 +145,7 @@ const calendarFocus = ref('all')
 const selectedCalendarDayKey = ref(null)
 const calendarCursor = reactive({ year: new Date().getFullYear(), month: new Date().getMonth() + 1 })
 const calendarWeekdays = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา']
+const lineSession = reactive({ status: 'initializing', inClient: false, profile: null })
 
 const blindFocusOptions = [
   { label: 'ภาพรวมบุคลิก', value: 'identity' },
@@ -300,6 +303,20 @@ function handleViewportResize() {
   if (activeView.value === 'luck') centerSelectedLuckCycle('auto')
 }
 
+async function connectLineAccount() {
+  if (isBlindTestMode) {
+    lineSession.status = 'local'
+    return
+  }
+
+  try {
+    Object.assign(lineSession, await initializeLineSession({ liffId }))
+  } catch {
+    lineSession.status = 'error'
+    lineSession.profile = null
+  }
+}
+
 function submitComparison() {
   comparisonError.value = ''
   comparisonResult.value = null
@@ -393,6 +410,7 @@ onMounted(() => {
   window.addEventListener('hashchange', syncViewFromHash)
   window.addEventListener('resize', handleViewportResize)
   if (activeView.value === 'luck') nextTick(() => centerSelectedLuckCycle('auto'))
+  connectLineAccount()
 })
 onBeforeUnmount(() => {
   window.removeEventListener('hashchange', syncViewFromHash)
@@ -406,12 +424,32 @@ submit()
   <main class="page-shell">
     <header class="hero">
       <div class="brand-mark">八字</div>
-      <div>
+      <div class="hero-heading">
         <p class="eyebrow">BAZI CALENDAR LAB</p>
         <h1>ผังโป๊ยหยี่สี่เถี่ยว</h1>
         <p class="hero-copy">
           {{ isBlindTestMode ? 'เครื่องมือภายในสำหรับทดสอบคุณภาพคำอ่านโดยไม่เฉลยดวงล่วงหน้า' : 'ต้นแบบสำหรับตรวจสอบ 8 เม็ดจากวัน เวลา และสถานที่เกิด' }}
         </p>
+      </div>
+      <div v-if="!isBlindTestMode" class="line-account" :class="`line-account-${lineSession.status}`">
+        <img
+          v-if="lineSession.profile?.pictureUrl"
+          :src="lineSession.profile.pictureUrl"
+          alt="รูปโปรไฟล์ LINE"
+        />
+        <i v-else :class="lineSession.status === 'initializing' ? 'pi pi-spin pi-spinner' : 'pi pi-user'" />
+        <div>
+          <strong v-if="lineSession.status === 'authenticated'">สวัสดี {{ lineSession.profile.displayName }}</strong>
+          <strong v-else-if="lineSession.status === 'local'">โหมดพัฒนา</strong>
+          <strong v-else-if="lineSession.status === 'error'">เชื่อม LINE ไม่สำเร็จ</strong>
+          <strong v-else-if="lineSession.status === 'unconfigured'">ยังไม่ได้ตั้งค่า LINE</strong>
+          <strong v-else>กำลังเชื่อม LINE</strong>
+          <small v-if="lineSession.status === 'authenticated'">{{ lineSession.inClient ? 'เปิดผ่านแอป LINE' : 'เข้าสู่ระบบด้วย LINE แล้ว' }}</small>
+          <small v-else-if="lineSession.status === 'local'">หน้าเว็บจริงจะเข้าสู่ระบบด้วย LINE</small>
+          <small v-else-if="lineSession.status === 'error'">ลองปิดแล้วเปิดจากลิงก์ LIFF อีกครั้ง</small>
+          <small v-else-if="lineSession.status === 'unconfigured'">กรุณากำหนด LIFF ID</small>
+          <small v-else>รอสักครู่</small>
+        </div>
       </div>
     </header>
 

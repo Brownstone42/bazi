@@ -160,6 +160,46 @@ h1 { margin-bottom: 5px; color: #3b161b; font-family: Georgia, "Noto Serif Thai"
 .comparison-result-card.positive span { color: #bcd2a9; }
 .comparison-result-card.caution span { color: #e5ada6; }
 .comparison-disclaimer { margin: 16px 0 0; color: #ad9880; font-size: .66rem; line-height: 1.5; text-align: center; }
+.quota-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; padding: 12px 14px; color: #63453d; background: #f3eee8; border-radius: 13px; }
+.quota-status span, .quota-status strong { display: block; }
+.quota-status span { margin-bottom: 2px; color: #8b7b70; font-size: .65rem; }
+.quota-status strong { font-size: .78rem; }
+.quota-status > small { padding: 6px 9px; color: #7a2936; background: #fffaf4; border-radius: 999px; font-size: .62rem; font-weight: 800; }
+
+.pricing-section { margin-top: 16px; padding: 20px; background: rgba(255,253,248,.94); border: 1px solid rgba(85,59,48,.12); border-radius: 20px; box-shadow: 0 16px 40px rgba(75,61,49,.08); }
+.pricing-heading { max-width: 720px; margin: 0 auto 22px; text-align: center; }
+.pricing-heading h2 { margin-bottom: 8px; color: #461922; font: 700 clamp(1.55rem, 5vw, 2.2rem) Georgia, "Noto Serif Thai", serif; }
+.pricing-heading p:last-child { margin-bottom: 0; color: #746861; font-size: .82rem; line-height: 1.65; }
+.pricing-notice { display: flex; align-items: flex-start; gap: 8px; max-width: 720px; margin: 0 auto 16px; padding: 12px 14px; color: #704b1e; background: #f7e9cc; border: 1px solid #ead3a5; border-radius: 12px; font-size: .74rem; line-height: 1.5; }
+.pricing-notice i { margin-top: 2px; }
+.pricing-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.price-card { display: flex; flex-direction: column; min-width: 0; padding: 19px; background: #fffdfa; border: 1px solid #e5d9ce; border-radius: 18px; }
+.price-card.premium-card { color: #f7ead7; background: linear-gradient(145deg, #3d1b21, #672633); border-color: #6f2a35; box-shadow: 0 16px 34px rgba(82,31,40,.18); }
+.price-card-topline { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #8c7c72; font-size: .64rem; font-weight: 800; }
+.price-card-topline b { padding: 5px 8px; color: #7c2835; background: #f5e8df; border-radius: 999px; }
+.premium-card .price-card-topline { color: #d9c1a5; }
+.premium-card .price-card-topline b { color: #5a242c; background: #e8c98f; }
+.price-card h3 { margin: 14px 0 6px; color: #4b2027; font: 700 1.35rem Georgia, "Noto Serif Thai", serif; }
+.premium-card h3 { color: #fff3de; }
+.price-card > p { min-height: 42px; margin-bottom: 12px; color: #7e7068; font-size: .75rem; line-height: 1.55; }
+.price-card ul { display: grid; gap: 9px; margin: 17px 0 20px; padding: 0; list-style: none; }
+.price-card li { display: flex; gap: 7px; color: #685d56; font-size: .72rem; line-height: 1.45; }
+.price-card li i { flex: 0 0 auto; margin-top: 2px; color: #67925e; font-size: .68rem; }
+.premium-card li { color: #ebddca; }
+.premium-card li i { color: #c6d9a9; }
+.price-options { display: grid; grid-template-columns: 1fr; gap: 7px; margin-top: 10px; }
+.price-options button { padding: 11px 12px; color: #fff0d9; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); border-radius: 11px; cursor: pointer; text-align: left; }
+.price-options strong, .price-options small, .single-price strong, .single-price small { display: block; }
+.price-options strong { font-size: 1rem; }
+.price-options small { margin-top: 2px; color: #d4bea2; font-size: .62rem; }
+.single-price { margin-top: 11px; padding: 12px; color: #5d2a32; background: #f6ede7; border-radius: 11px; }
+.single-price strong { font-size: 1.05rem; }
+.single-price small { margin-top: 3px; color: #86756b; font-size: .64rem; }
+.price-button { width: 100%; min-height: 43px; margin-top: auto; border-radius: 11px; cursor: pointer; font-size: .75rem; font-weight: 800; }
+.price-button.primary { color: #4a2027; background: #e6c486; border: 0; }
+.price-button.secondary { color: #772936; background: #fff8f2; border: 1px solid #ddcfc4; }
+.price-button:disabled { cursor: default; opacity: .65; }
+.pricing-footnote { margin: 18px 0 0; color: #8c7e75; font-size: .66rem; line-height: 1.5; text-align: center; }
 
 .calendar-section { margin-top: 16px; padding: 20px; background: rgba(255,253,248,.94); border: 1px solid rgba(85,59,48,.12); border-radius: 20px; box-shadow: 0 16px 40px rgba(75,61,49,.08); }
 .calendar-heading { display: block; margin-bottom: 20px; }
@@ -182,23 +222,33 @@ h1 { margin-bottom: 5px; color: #3b161b; font-family: Georgia, "Noto Serif Thai"
 .calendar-highlights button { display: flex; align-items: center; gap: 5px; padding: 7px 9px; color: #476540; background: rgba(255,255,255,.75); border: 1px solid rgba(75,105,67,.16); border-radius: 9px; cursor: pointer; font-size: .72rem; font-weight: 900; }
 .calendar-highlights .caution button { color: #88404a; border-color: rgba(145,64,74,.15); }
 .calendar-highlights small { font-size: .6rem; font-weight: 600; }
+.feature-lock-callout { display: flex; align-items: center; gap: 11px; width: 100%; margin: 12px 0; padding: 13px; color: #6d4a20; background: #f6e9cf; border: 1px solid #ead3a9; border-radius: 13px; cursor: pointer; text-align: left; }
+.feature-lock-callout > i { flex: 0 0 auto; }
+.feature-lock-callout > span { flex: 1; min-width: 0; }
+.feature-lock-callout strong, .feature-lock-callout small { display: block; }
+.feature-lock-callout strong { font-size: .72rem; }
+.feature-lock-callout small { margin-top: 2px; color: #8b714c; font-size: .61rem; line-height: 1.4; }
+.feature-lock-callout > b { flex: 0 0 auto; color: #7b2936; font-size: .64rem; }
 .calendar-panel { padding: 12px 6px 10px; background: #f6f1eb; border: 1px solid #e7ddd4; border-radius: 17px; }
 .calendar-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 3px 6px 12px; }
 .calendar-toolbar strong { color: #54362f; font-size: .9rem; }
 .calendar-toolbar button { display: grid; place-items: center; width: 38px; height: 38px; color: #742532; background: #fffaf4; border: 1px solid #dfd2c7; border-radius: 11px; cursor: pointer; }
+.calendar-toolbar button:disabled { cursor: default; opacity: .28; }
 .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
 .calendar-weekdays { padding: 0 2px 6px; color: #8b7c73; font-size: .61rem; font-weight: 800; text-align: center; }
 .calendar-days { padding: 0 2px; }
 .calendar-day { position: relative; display: flex; align-items: center; justify-content: center; flex-direction: column; min-width: 0; min-height: 50px; padding: 5px 2px; color: #665851; background: #fffdfa; border: 1px solid #e8dfd7; border-radius: 9px; cursor: pointer; }
 .calendar-day > span { font-size: .75rem; font-weight: 900; }
-.calendar-day > i { width: 6px; height: 6px; margin-top: 4px; background: #c2b5aa; border-radius: 50%; }
+.calendar-day > .calendar-day-dot { width: 6px; height: 6px; margin-top: 4px; background: #c2b5aa; border-radius: 50%; }
+.calendar-day > .calendar-lock-icon { width: auto; height: auto; margin-top: 4px; color: #a29084; background: transparent; font-size: .58rem; }
 .calendar-day > small { display: none; margin-top: 4px; overflow: hidden; font-size: .56rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.calendar-day.strong > i, .calendar-day.supportive > i { background: #6d9a62; }
-.calendar-day.caution > i { background: #bd665f; }
+.calendar-day.strong > .calendar-day-dot, .calendar-day.supportive > .calendar-day-dot { background: #6d9a62; }
+.calendar-day.caution > .calendar-day-dot { background: #bd665f; }
 .calendar-day.strong, .calendar-day.supportive { background: #f4f9f1; }
 .calendar-day.caution { background: #fff5f2; }
 .calendar-day.today::after { content: "วันนี้"; position: absolute; top: 2px; right: 2px; color: #8a2736; font-size: .42rem; font-weight: 900; }
 .calendar-day.selected { z-index: 1; border-color: #7f2634; box-shadow: 0 0 0 2px rgba(127,38,52,.13); }
+.calendar-day.locked { color: #9c8e84; background: #f1ece7; border-style: dashed; }
 .calendar-legend { display: flex; flex-wrap: wrap; gap: 9px 13px; padding: 12px 5px 2px; color: #7f726a; font-size: .6rem; }
 .calendar-legend span { display: flex; align-items: center; gap: 5px; }
 .calendar-legend i { width: 7px; height: 7px; background: #bcb0a6; border-radius: 50%; }
@@ -271,6 +321,11 @@ h1 { margin-bottom: 5px; color: #3b161b; font-family: Georgia, "Noto Serif Thai"
 .luck-cycle.current { background: #fff8e8; border-color: #b98945; box-shadow: 0 10px 28px rgba(118, 80, 32, .15); }
 .luck-cycle.current::before { background: #8a2736; }
 .luck-cycle.selected { z-index: 1; border-color: #7f2634; box-shadow: 0 0 0 3px rgba(127, 38, 52, .10), 0 10px 28px rgba(77, 37, 42, .12); opacity: 1; filter: none; transform: scale(1); }
+.luck-cycle.locked { opacity: .62; filter: grayscale(.35); }
+.luck-cycle.locked .luck-cycle-content { opacity: .12; }
+.luck-cycle-lock { position: absolute; inset: 0; display: grid; place-content: center; gap: 7px; color: #6f3b43; text-align: center; }
+.luck-cycle-lock i { font-size: 1.1rem; }
+.luck-cycle-lock span { font-size: .68rem; font-weight: 800; }
 .luck-cycle-content { height: 100%; opacity: 0; transition: opacity .16s ease; }
 .luck-cycle.selected .luck-cycle-content { opacity: 1; transition-delay: .16s; }
 .luck-cycle:focus-visible { outline: 3px solid rgba(127, 38, 52, .25); outline-offset: 2px; }
@@ -341,7 +396,7 @@ h1 { margin-bottom: 5px; color: #3b161b; font-family: Georgia, "Noto Serif Thai"
 @media (min-width: 640px) {
   .page-shell { padding-inline: 20px; }
   .view-navigation { gap: 10px; padding: 6px; }
-  .view-navigation { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .view-navigation { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .view-navigation button { padding: 13px 15px; }
   .view-navigation small { display: block; }
   .field-grid { grid-template-columns: 1fr 1fr; gap: 17px 14px; }
@@ -356,6 +411,8 @@ h1 { margin-bottom: 5px; color: #3b161b; font-family: Georgia, "Noto Serif Thai"
   .current-luck-grid { grid-template-columns: 1fr 1fr; }
   .comparison-result-grid { grid-template-columns: 1fr 1fr; }
   .comparison-result-card.featured { grid-column: 1 / -1; }
+  .pricing-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; }
+  .premium-card { transform: translateY(-7px); }
   .calendar-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
   .calendar-heading .premium-badge { margin-top: 0; }
   .calendar-highlights { grid-template-columns: 1.35fr 1fr; }
@@ -378,7 +435,7 @@ h1 { margin-bottom: 5px; color: #3b161b; font-family: Georgia, "Noto Serif Thai"
   .pillars-grid { gap: 10px; margin: 28px 0 20px; }
   .pillar-label { padding: 10px 5px; font-size: .8rem; }
   .stem, .branch { font-size: clamp(2rem, 6vw, 3.1rem); }
-  .reading-section, .luck-section, .comparison-section, .calendar-section { margin-top: 26px; padding: clamp(24px, 4vw, 38px); border-radius: 24px; }
+  .reading-section, .luck-section, .comparison-section, .calendar-section, .pricing-section { margin-top: 26px; padding: clamp(24px, 4vw, 38px); border-radius: 24px; }
   .reading-intro { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 25px; }
   .reading-badge { margin-top: 0; }
   .insight-grid { grid-template-columns: 1fr 1fr; gap: 14px; }

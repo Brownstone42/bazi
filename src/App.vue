@@ -20,8 +20,16 @@ import { buildLuckPillarTimeline, interpretLuckPillar } from './services/luck-pi
 import { interpretCompatibility } from './services/compatibility'
 import { pickerDateToTimeString, timeStringToPickerDate } from './services/time-input'
 import { buildPersonalMonth, calendarFocusOptions, shiftCalendarMonth } from './services/personal-calendar'
+import {
+  accessPlans,
+  calendarMonthAccess,
+  canAccessCalendarDay,
+  canAccessLuckCycle,
+  comparisonLimitForPlan
+} from './services/access-control'
 
 const isBlindTestMode = new URLSearchParams(window.location.search).get('mode') === 'blind-test'
+const previewPlan = new URLSearchParams(window.location.search).get('preview')
 
 const form = reactive({
   birthDate: '26/08/1989',
@@ -126,6 +134,9 @@ const comparisonResult = ref(null)
 const comparisonError = ref('')
 const activeView = ref(viewFromHash())
 const luckTrack = ref(null)
+const accessPlan = ref(['premium', 'comparison'].includes(previewPlan) ? previewPlan : 'free')
+const pricingNotice = ref('')
+const comparisonUsage = ref(0)
 const calendarFocus = ref('all')
 const selectedCalendarDayKey = ref(null)
 const calendarCursor = reactive({ year: new Date().getFullYear(), month: new Date().getMonth() + 1 })
@@ -150,10 +161,11 @@ const reading = computed(() => chart.value && strength.value ? interpretNatalCha
 const luckTimeline = computed(() => chart.value && calculatedInput.value
   ? buildLuckPillarTimeline(chart.value, calculatedInput.value.gender, calculatedInput.value.timezoneId)
   : null)
+const currentLuckCycle = computed(() => luckTimeline.value?.cycles.find((cycle) => cycle.isCurrent) ?? null)
 const selectedLuckCycle = computed(() => {
   const cycles = luckTimeline.value?.cycles ?? []
   return cycles.find((cycle) => cycle.index === selectedLuckCycleIndex.value) ??
-    cycles.find((cycle) => cycle.isCurrent) ??
+    currentLuckCycle.value ??
     cycles[0] ??
     null
 })
@@ -163,6 +175,11 @@ const selectedLuckReading = computed(() => chart.value && strength.value && sele
 const selectedLuckPosition = computed(() => luckTimeline.value?.cycles.findIndex((cycle) => cycle.index === selectedLuckCycle.value?.index) ?? -1)
 const canMoveLuckPrevious = computed(() => selectedLuckPosition.value > 0)
 const canMoveLuckNext = computed(() => selectedLuckPosition.value >= 0 && selectedLuckPosition.value < (luckTimeline.value?.cycles.length ?? 0) - 1)
+const isPremium = computed(() => accessPlan.value === 'premium')
+const comparisonLimit = computed(() => comparisonLimitForPlan(accessPlan.value))
+const comparisonRemaining = computed(() => Math.max(0, comparisonLimit.value - comparisonUsage.value))
+const calendarPreviousAccess = computed(() => calendarMonthAccess(calendarCursor.year, calendarCursor.month - 1, accessPlan.value))
+const calendarNextAccess = computed(() => calendarMonthAccess(calendarCursor.year, calendarCursor.month + 1, accessPlan.value))
 const selectedRelationshipLabel = computed(() => relationshipOptions.find((item) => item.value === comparisonForm.relationship)?.label ?? 'อีกฝ่าย')
 const availableComparisonFocusOptions = computed(() => {
   const allowed = focusByRelationship[comparisonForm.relationship] ?? ['overview']
@@ -191,6 +208,7 @@ function viewFromHash() {
   if (window.location.hash === '#luck') return 'luck'
   if (window.location.hash === '#calendar') return 'calendar'
   if (window.location.hash === '#compare') return 'compare'
+  if (window.location.hash === '#pricing') return 'pricing'
   return 'profile'
 }
 
@@ -220,6 +238,11 @@ function centerSelectedLuckCycle(behavior = 'smooth') {
 }
 
 function selectLuckCycle(index, behavior = 'smooth') {
+  const cycle = luckTimeline.value?.cycles.find((item) => item.index === index)
+  if (!canAccessLuckCycle(cycle, currentLuckCycle.value, accessPlan.value)) {
+    openPricing('ถนนสิบปีในอนาคตเป็นสิทธิ์ของสมาชิก Premium')
+    return
+  }
   selectedLuckCycleIndex.value = index
   nextTick(() => centerSelectedLuckCycle(behavior))
 }
@@ -232,18 +255,39 @@ function moveLuckCycle(direction) {
 
 function setActiveView(view) {
   activeView.value = view
-  window.location.hash = view === 'luck' ? 'luck' : view === 'calendar' ? 'calendar' : view === 'compare' ? 'compare' : 'profile'
+  const hashes = { luck: 'luck', calendar: 'calendar', compare: 'compare', pricing: 'pricing' }
+  window.location.hash = hashes[view] ?? 'profile'
   window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+function openPricing(message = '') {
+  pricingNotice.value = message
+  setActiveView('pricing')
+}
+
+function choosePlan(planId) {
+  const plan = accessPlans[planId]
+  pricingNotice.value = `เลือก ${plan.label} แล้ว — ระบบรับชำระเงินจริงจะเชื่อมในขั้นถัดไป`
 }
 
 function moveCalendarMonth(amount) {
   const shifted = shiftCalendarMonth(calendarCursor.year, calendarCursor.month, amount)
+  const access = calendarMonthAccess(shifted.year, shifted.month, accessPlan.value)
+  if (access === 'premium') {
+    openPricing('การดูปฏิทินเดือนหน้าเป็นสิทธิ์ของสมาชิก Premium')
+    return
+  }
+  if (access === 'unavailable') return
   calendarCursor.year = shifted.year
   calendarCursor.month = shifted.month
   selectedCalendarDayKey.value = null
 }
 
 function selectCalendarDay(day) {
+  if (!canAccessCalendarDay(day, accessPlan.value)) {
+    openPricing('ผู้ใช้ฟรีดูรายละเอียดได้เฉพาะวันนี้ สมัคร Premium เพื่อเปิดทั้งเดือน')
+    return
+  }
   selectedCalendarDayKey.value = day.key
 }
 
@@ -261,12 +305,17 @@ function submitComparison() {
 
   try {
     if (!chart.value) throw new Error('กรุณาคำนวณพื้นดวงของคุณก่อน')
+    if (comparisonRemaining.value <= 0) {
+      openPricing('ใช้สิทธิ์เปรียบเทียบบุคคลครบแล้ว กรุณาเลือกรูปแบบสมาชิกสำหรับรอบถัดไป')
+      return
+    }
     const { chart: otherChart, hasBirthTime } = calculateChartWithOptionalTime(comparisonForm)
     comparisonResult.value = interpretCompatibility(chart.value, otherChart, {
       relationship: comparisonForm.relationship,
       focus: comparisonForm.focus,
       hasBirthTime
     })
+    comparisonUsage.value += 1
   } catch (cause) {
     comparisonError.value = cause instanceof Error ? cause.message : 'ไม่สามารถเปรียบเทียบความสัมพันธ์ได้'
   }
@@ -395,6 +444,15 @@ submit()
       >
         <i class="pi pi-users" />
         <span><strong>เปรียบเทียบบุคคล</strong><small>คำแนะนำสำหรับความสัมพันธ์</small></span>
+      </button>
+      <button
+        type="button"
+        :class="{ active: activeView === 'pricing' }"
+        :aria-current="activeView === 'pricing' ? 'page' : undefined"
+        @click="setActiveView('pricing')"
+      >
+        <i class="pi pi-crown" />
+        <span><strong>แพ็กเกจ</strong><small>ดูสิทธิ์ Free และ Premium</small></span>
       </button>
     </nav>
 
@@ -644,6 +702,11 @@ submit()
         <span class="premium-badge"><i class="pi pi-lock" /> ฟีเจอร์พิเศษ</span>
       </div>
 
+      <div class="quota-status">
+        <div><span>สิทธิ์เปรียบเทียบเดือนนี้</span><strong>เหลือ {{ comparisonRemaining }} จาก {{ comparisonLimit }} คน</strong></div>
+        <small>{{ accessPlans[accessPlan].label }}</small>
+      </div>
+
       <form class="comparison-form" @submit.prevent="submitComparison">
         <div class="comparison-form-heading">
           <span class="step">01</span>
@@ -746,6 +809,62 @@ submit()
       </article>
     </section>
 
+    <section v-if="!isBlindTestMode && activeView === 'pricing'" class="pricing-section">
+      <div class="pricing-heading">
+        <p class="eyebrow">CHOOSE YOUR PLAN</p>
+        <h2>เลือกสิทธิ์ที่เหมาะกับการใช้งาน</h2>
+        <p>พื้นดวง ภาพรวมวันนี้ และถนนสิบปีถึงปัจจุบันยังใช้ฟรี ส่วน Premium ช่วยให้วางแผนล่วงหน้าได้มากขึ้น</p>
+      </div>
+
+      <div v-if="pricingNotice" class="pricing-notice"><i class="pi pi-info-circle" /> {{ pricingNotice }}</div>
+
+      <div class="pricing-grid">
+        <article class="price-card free-card">
+          <div class="price-card-topline"><span>เริ่มต้นใช้งาน</span><b>Free</b></div>
+          <h3>ฟรี</h3>
+          <p>ทำความเข้าใจตัวเองและดูภาพรวมของวันนี้</p>
+          <ul>
+            <li><i class="pi pi-check" /> พื้นดวงทั้งหมด</li>
+            <li><i class="pi pi-check" /> ถนนสิบปีตั้งแต่อดีตถึงปัจจุบัน</li>
+            <li><i class="pi pi-check" /> ภาพรวมและคำแนะนำวันนี้</li>
+            <li><i class="pi pi-check" /> เปรียบเทียบบุคคล 1 คน</li>
+          </ul>
+          <button type="button" class="price-button secondary" disabled>แพ็กเกจปัจจุบัน</button>
+        </article>
+
+        <article class="price-card premium-card">
+          <div class="price-card-topline"><span>วางแผนล่วงหน้า</span><b>แนะนำ</b></div>
+          <h3>Premium</h3>
+          <div class="price-options">
+            <button type="button" @click="choosePlan('premium')"><strong>299 บาท</strong><small>ต่อเดือน</small></button>
+            <button type="button" @click="choosePlan('premium')"><strong>2,490 บาท</strong><small>ต่อปี · ประหยัด 1,098 บาท</small></button>
+          </div>
+          <ul>
+            <li><i class="pi pi-check" /> ถนนสิบปีครบทุกช่วง</li>
+            <li><i class="pi pi-check" /> ปฏิทินเดือนนี้และเดือนหน้า</li>
+            <li><i class="pi pi-check" /> ค้นหาวันเหมาะและเปรียบเทียบวัน</li>
+            <li><i class="pi pi-check" /> Notification ที่เลือกหัวข้อได้</li>
+            <li><i class="pi pi-check" /> เปรียบเทียบบุคคล 5 คนต่อเดือน</li>
+          </ul>
+          <button type="button" class="price-button primary" @click="choosePlan('premium')">เลือก Premium</button>
+        </article>
+
+        <article class="price-card comparison-card">
+          <div class="price-card-topline"><span>ใช้เฉพาะความสัมพันธ์</span><b>รายเดือน</b></div>
+          <h3>เปรียบเทียบบุคคล</h3>
+          <div class="single-price"><strong>100 บาท</strong><small>ใช้ได้ 5 คนภายในเดือนที่ซื้อ</small></div>
+          <ul>
+            <li><i class="pi pi-check" /> เลือกคนและเรื่องที่อยากดู</li>
+            <li><i class="pi pi-check" /> เปิดรายงานเดิมซ้ำได้</li>
+            <li><i class="pi pi-check" /> ไม่รวมปฏิทินและถนนสิบปีในอนาคต</li>
+          </ul>
+          <button type="button" class="price-button secondary" @click="choosePlan('comparison')">เลือกเฉพาะเปรียบเทียบ</button>
+        </article>
+      </div>
+
+      <p class="pricing-footnote">ระบบรับชำระเงินและการต่ออายุยังไม่ได้เปิดใช้งาน หน้านี้เป็นต้นแบบเพื่อยืนยันแพ็กเกจและประสบการณ์ใช้งาน</p>
+    </section>
+
     <section v-if="personalMonth && !isBlindTestMode && activeView === 'calendar'" class="calendar-section">
       <div class="view-profile-summary">
         <div>
@@ -762,7 +881,7 @@ submit()
           <h2>ปฏิทินช่วยวางแผนของคุณ</h2>
           <p>เลือกเรื่องที่กำลังสนใจ แล้วดูว่าแต่ละวันเหมาะกับการเดินหน้า เตรียมตัว หรือเพิ่มความระมัดระวังอย่างไร</p>
         </div>
-        <span class="premium-badge"><i class="pi pi-sparkles" /> ตัวอย่างสำหรับสมาชิก</span>
+        <span class="premium-badge"><i class="pi" :class="isPremium ? 'pi-crown' : 'pi-calendar'" /> {{ isPremium ? 'Premium' : 'วันนี้ใช้ฟรี' }}</span>
       </div>
 
       <label class="field calendar-focus-field">
@@ -780,7 +899,7 @@ submit()
         </div>
       </article>
 
-      <div class="calendar-highlights">
+      <div v-if="isPremium" class="calendar-highlights">
         <div>
           <span>วันที่น่าใช้กับเรื่องสำคัญ</span>
           <button v-for="day in personalMonth.recommended" :key="day.key" type="button" @click="selectCalendarDay(day)">
@@ -794,12 +913,15 @@ submit()
           </button>
         </div>
       </div>
+      <button v-else type="button" class="feature-lock-callout" @click="openPricing('วันที่น่าใช้และวันที่ควรวางแผนเผื่อเป็นสิทธิ์ของสมาชิก Premium')">
+        <i class="pi pi-lock" /><span><strong>เปิดวันที่น่าใช้ตลอดทั้งเดือน</strong><small>รวมวันที่ควรวางแผนเผื่อและรายละเอียดรายวัน</small></span><b>ดู Premium</b>
+      </button>
 
       <div class="calendar-panel">
         <div class="calendar-toolbar">
-          <button type="button" aria-label="เดือนก่อนหน้า" @click="moveCalendarMonth(-1)"><i class="pi pi-chevron-left" /></button>
+          <button type="button" aria-label="เดือนก่อนหน้า" :disabled="calendarPreviousAccess === 'unavailable'" @click="moveCalendarMonth(-1)"><i class="pi pi-chevron-left" /></button>
           <strong>{{ personalMonth.monthLabel }}</strong>
-          <button type="button" aria-label="เดือนถัดไป" @click="moveCalendarMonth(1)"><i class="pi pi-chevron-right" /></button>
+          <button type="button" aria-label="เดือนถัดไป" :disabled="calendarNextAccess === 'unavailable'" @click="moveCalendarMonth(1)"><i :class="calendarNextAccess === 'premium' ? 'pi pi-lock' : 'pi pi-chevron-right'" /></button>
         </div>
         <div class="calendar-grid calendar-weekdays">
           <span v-for="weekday in calendarWeekdays" :key="weekday">{{ weekday }}</span>
@@ -811,14 +933,15 @@ submit()
             :key="day.key"
             type="button"
             class="calendar-day"
-            :class="[day.level, { selected: selectedCalendarDay?.key === day.key, today: day.isToday }]"
+            :class="[day.level, { selected: selectedCalendarDay?.key === day.key, today: day.isToday, locked: !canAccessCalendarDay(day, accessPlan) }]"
             :aria-label="`วันที่ ${day.day} ${day.tag}`"
             :aria-pressed="selectedCalendarDay?.key === day.key"
             @click="selectCalendarDay(day)"
           >
             <span>{{ day.day }}</span>
-            <i />
-            <small>{{ day.tag }}</small>
+            <i v-if="!canAccessCalendarDay(day, accessPlan)" class="pi pi-lock calendar-lock-icon" />
+            <i v-else class="calendar-day-dot" />
+            <small>{{ canAccessCalendarDay(day, accessPlan) ? day.tag : 'Premium' }}</small>
           </button>
         </div>
         <div class="calendar-legend">
@@ -897,7 +1020,7 @@ submit()
             :key="cycle.index"
             type="button"
             class="luck-cycle"
-            :class="{ current: cycle.isCurrent, selected: cycle.index === selectedLuckCycle.index }"
+            :class="{ current: cycle.isCurrent, selected: cycle.index === selectedLuckCycle.index, locked: !canAccessLuckCycle(cycle, currentLuckCycle, accessPlan) }"
             :data-cycle-index="cycle.index"
             :aria-label="`ดูคำอ่านช่วงที่ ${cycle.index} อายุ ${cycle.startAge} ถึง ${cycle.endAge} ปี`"
             :aria-pressed="cycle.index === selectedLuckCycle.index"
@@ -917,6 +1040,7 @@ submit()
               <p class="luck-years">อายุ {{ cycle.startAge }}–{{ cycle.endAge }} ปี</p>
               <p class="luck-calendar">พ.ศ. {{ cycle.startYear + 543 }}–{{ cycle.endYear + 543 }} <small>ค.ศ. {{ cycle.startYear }}–{{ cycle.endYear }}</small></p>
             </div>
+            <div v-if="!canAccessLuckCycle(cycle, currentLuckCycle, accessPlan)" class="luck-cycle-lock"><i class="pi pi-lock" /><span>อนาคตสำหรับ Premium</span></div>
           </button>
         </div>
 

@@ -177,6 +177,7 @@ const selectedLuckReading = computed(() => chart.value && strength.value && sele
 const selectedLuckPosition = computed(() => luckTimeline.value?.cycles.findIndex((cycle) => cycle.index === selectedLuckCycle.value?.index) ?? -1)
 const canMoveLuckPrevious = computed(() => selectedLuckPosition.value > 0)
 const canMoveLuckNext = computed(() => selectedLuckPosition.value >= 0 && selectedLuckPosition.value < (luckTimeline.value?.cycles.length ?? 0) - 1)
+const selectedLuckLocked = computed(() => !canAccessLuckCycle(selectedLuckCycle.value, currentLuckCycle.value, accessPlan.value))
 const isPremium = computed(() => accessPlan.value === 'premium')
 const comparisonQuota = computed(() => comparisonBalance({
   planId: accessPlan.value,
@@ -243,11 +244,6 @@ function centerSelectedLuckCycle(behavior = 'smooth') {
 }
 
 function selectLuckCycle(index, behavior = 'smooth') {
-  const cycle = luckTimeline.value?.cycles.find((item) => item.index === index)
-  if (!canAccessLuckCycle(cycle, currentLuckCycle.value, accessPlan.value)) {
-    openPricing('ถนนสิบปีในอนาคตเป็นสิทธิ์ของสมาชิก Premium')
-    return
-  }
   selectedLuckCycleIndex.value = index
   nextTick(() => centerSelectedLuckCycle(behavior))
 }
@@ -1055,7 +1051,7 @@ submit()
               <p class="luck-years">อายุ {{ cycle.startAge }}–{{ cycle.endAge }} ปี</p>
               <p class="luck-calendar">พ.ศ. {{ cycle.startYear + 543 }}–{{ cycle.endYear + 543 }} <small>ค.ศ. {{ cycle.startYear }}–{{ cycle.endYear }}</small></p>
             </div>
-            <div v-if="!canAccessLuckCycle(cycle, currentLuckCycle, accessPlan)" class="luck-cycle-lock"><i class="pi pi-lock" /><span>อนาคตสำหรับ Premium</span></div>
+            <div v-if="!canAccessLuckCycle(cycle, currentLuckCycle, accessPlan)" class="luck-cycle-lock"><i class="pi pi-lock" /><span>Premium</span></div>
           </button>
         </div>
 
@@ -1072,7 +1068,17 @@ submit()
 
       <p class="luck-carousel-position">ช่วงที่ {{ selectedLuckPosition + 1 }} จาก {{ luckTimeline.cycles.length }}</p>
 
-      <article v-if="selectedLuckReading" class="current-luck-reading">
+      <article v-if="selectedLuckLocked" class="luck-premium-gate">
+        <div class="luck-premium-icon"><i class="pi pi-lock" /></div>
+        <span>PREMIUM</span>
+        <h3>ช่วงชีวิตในอนาคต</h3>
+        <p>สมัคร Premium เพื่อเปิดคำอ่านถนนสิบปีในอนาคต พร้อมคำแนะนำด้านงาน การเงิน ความสัมพันธ์ และสิ่งที่ควรวางแผนในแต่ละช่วง</p>
+        <button type="button" @click="openPricing('ถนนสิบปีในอนาคตเป็นสิทธิ์ของสมาชิก Premium')">
+          ดูแพ็กเกจ <i class="pi pi-arrow-right" />
+        </button>
+      </article>
+
+      <article v-else-if="selectedLuckReading" class="current-luck-reading">
         <div class="current-luck-heading">
           <div>
             <span>{{ selectedLuckReading.isCurrent ? 'ช่วงชีวิตปัจจุบัน' : `ช่วงชีวิตที่ ${selectedLuckReading.index}` }}</span>

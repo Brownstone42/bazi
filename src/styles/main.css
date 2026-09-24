@@ -348,6 +348,14 @@ h1 { margin-bottom: 5px; color: #3b161b; font-family: Georgia, "Noto Serif Thai"
 .luck-arrow-previous { left: 12px; }
 .luck-arrow-next { right: 12px; }
 .luck-carousel-position { margin: -3px 0 13px; color: #8b7a70; font-size: .68rem; font-weight: 700; text-align: center; }
+.luck-premium-gate { margin: 0 0 20px; padding: 24px 18px; color: #f7ead7; background: linear-gradient(145deg, #32191e, #58232c); border: 1px solid #78404a; border-radius: 17px; text-align: center; }
+.luck-premium-icon { display: grid; place-items: center; width: 50px; height: 50px; margin: 0 auto 12px; color: #4c2027; background: #e5c589; border-radius: 50%; box-shadow: 0 8px 22px rgba(0,0,0,.18); }
+.luck-premium-icon i { font-size: 1.15rem; }
+.luck-premium-gate > span { color: #e1c08b; font-size: .65rem; font-weight: 900; letter-spacing: .15em; }
+.luck-premium-gate h3 { margin: 6px 0 8px; color: #fff4df; font: 700 1.22rem Georgia, "Noto Serif Thai", serif; }
+.luck-premium-gate p { max-width: 580px; margin: 0 auto 16px; color: #dfcdb8; font-size: .76rem; line-height: 1.65; }
+.luck-premium-gate button { padding: 11px 16px; color: #4c2027; background: #e5c589; border: 0; border-radius: 11px; cursor: pointer; font-size: .74rem; font-weight: 900; }
+.luck-premium-gate button i { margin-left: 5px; font-size: .68rem; }
 .luck-ten-gods { display: grid; gap: 7px; margin: 0; padding-top: 12px; border-top: 1px solid #eee4db; }
 .luck-ten-gods div { display: grid; gap: 2px; }
 .luck-ten-gods dt { color: #a06e32; font-size: .63rem; font-weight: 800; }

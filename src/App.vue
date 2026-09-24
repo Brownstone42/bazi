@@ -25,7 +25,8 @@ import {
   calendarMonthAccess,
   canAccessCalendarDay,
   canAccessLuckCycle,
-  comparisonLimitForPlan
+  comparisonBalance,
+  consumeComparison
 } from './services/access-control'
 
 const isBlindTestMode = new URLSearchParams(window.location.search).get('mode') === 'blind-test'
@@ -134,9 +135,10 @@ const comparisonResult = ref(null)
 const comparisonError = ref('')
 const activeView = ref(viewFromHash())
 const luckTrack = ref(null)
-const accessPlan = ref(['premium', 'comparison'].includes(previewPlan) ? previewPlan : 'free')
+const accessPlan = ref(previewPlan === 'premium' ? 'premium' : 'free')
 const pricingNotice = ref('')
-const comparisonUsage = ref(0)
+const comparisonIncludedUsed = ref(0)
+const purchasedComparisonCredits = ref(previewPlan === 'comparison' ? 5 : 0)
 const calendarFocus = ref('all')
 const selectedCalendarDayKey = ref(null)
 const calendarCursor = reactive({ year: new Date().getFullYear(), month: new Date().getMonth() + 1 })
@@ -176,8 +178,11 @@ const selectedLuckPosition = computed(() => luckTimeline.value?.cycles.findIndex
 const canMoveLuckPrevious = computed(() => selectedLuckPosition.value > 0)
 const canMoveLuckNext = computed(() => selectedLuckPosition.value >= 0 && selectedLuckPosition.value < (luckTimeline.value?.cycles.length ?? 0) - 1)
 const isPremium = computed(() => accessPlan.value === 'premium')
-const comparisonLimit = computed(() => comparisonLimitForPlan(accessPlan.value))
-const comparisonRemaining = computed(() => Math.max(0, comparisonLimit.value - comparisonUsage.value))
+const comparisonQuota = computed(() => comparisonBalance({
+  planId: accessPlan.value,
+  includedUsed: comparisonIncludedUsed.value,
+  purchasedCredits: purchasedComparisonCredits.value
+}))
 const calendarPreviousAccess = computed(() => calendarMonthAccess(calendarCursor.year, calendarCursor.month - 1, accessPlan.value))
 const calendarNextAccess = computed(() => calendarMonthAccess(calendarCursor.year, calendarCursor.month + 1, accessPlan.value))
 const selectedRelationshipLabel = computed(() => relationshipOptions.find((item) => item.value === comparisonForm.relationship)?.label ?? 'อีกฝ่าย')
@@ -305,8 +310,13 @@ function submitComparison() {
 
   try {
     if (!chart.value) throw new Error('กรุณาคำนวณพื้นดวงของคุณก่อน')
-    if (comparisonRemaining.value <= 0) {
-      openPricing('ใช้สิทธิ์เปรียบเทียบบุคคลครบแล้ว กรุณาเลือกรูปแบบสมาชิกสำหรับรอบถัดไป')
+    const quotaUse = consumeComparison({
+      planId: accessPlan.value,
+      includedUsed: comparisonIncludedUsed.value,
+      purchasedCredits: purchasedComparisonCredits.value
+    })
+    if (!quotaUse) {
+      openPricing('ใช้สิทธิ์เปรียบเทียบบุคคลครบแล้ว สามารถซื้อสิทธิ์เพิ่ม 5 คนในราคา 100 บาทและเก็บไว้ใช้ได้โดยไม่หมดอายุ')
       return
     }
     const { chart: otherChart, hasBirthTime } = calculateChartWithOptionalTime(comparisonForm)
@@ -315,7 +325,8 @@ function submitComparison() {
       focus: comparisonForm.focus,
       hasBirthTime
     })
-    comparisonUsage.value += 1
+    comparisonIncludedUsed.value = quotaUse.includedUsed
+    purchasedComparisonCredits.value = quotaUse.purchasedCredits
   } catch (cause) {
     comparisonError.value = cause instanceof Error ? cause.message : 'ไม่สามารถเปรียบเทียบความสัมพันธ์ได้'
   }
@@ -703,7 +714,10 @@ submit()
       </div>
 
       <div class="quota-status">
-        <div><span>สิทธิ์เปรียบเทียบเดือนนี้</span><strong>เหลือ {{ comparisonRemaining }} จาก {{ comparisonLimit }} คน</strong></div>
+        <div>
+          <span>สิทธิ์ที่ใช้ได้ตอนนี้</span>
+          <strong>โควตาแพ็กเกจ {{ comparisonQuota.includedRemaining }}/{{ comparisonQuota.includedLimit }} คน · สิทธิ์ซื้อไว้ {{ comparisonQuota.purchasedRemaining }} คน</strong>
+        </div>
         <small>{{ accessPlans[accessPlan].label }}</small>
       </div>
 
@@ -850,12 +864,13 @@ submit()
         </article>
 
         <article class="price-card comparison-card">
-          <div class="price-card-topline"><span>ใช้เฉพาะความสัมพันธ์</span><b>รายเดือน</b></div>
+          <div class="price-card-topline"><span>ใช้เฉพาะความสัมพันธ์</span><b>ไม่หมดอายุ</b></div>
           <h3>เปรียบเทียบบุคคล</h3>
-          <div class="single-price"><strong>100 บาท</strong><small>ใช้ได้ 5 คนภายในเดือนที่ซื้อ</small></div>
+          <div class="single-price"><strong>100 บาท</strong><small>ใช้ได้ 5 คน เก็บสิทธิ์ไว้ได้โดยไม่จำกัดเวลา</small></div>
           <ul>
             <li><i class="pi pi-check" /> เลือกคนและเรื่องที่อยากดู</li>
             <li><i class="pi pi-check" /> เปิดรายงานเดิมซ้ำได้</li>
+            <li><i class="pi pi-check" /> หากเป็น Premium ระบบใช้โควตารายเดือนก่อน</li>
             <li><i class="pi pi-check" /> ไม่รวมปฏิทินและถนนสิบปีในอนาคต</li>
           </ul>
           <button type="button" class="price-button secondary" @click="choosePlan('comparison')">เลือกเฉพาะเปรียบเทียบ</button>

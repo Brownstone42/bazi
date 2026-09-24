@@ -3,7 +3,9 @@ import {
   calendarMonthAccess,
   canAccessCalendarDay,
   canAccessLuckCycle,
-  comparisonLimitForPlan
+  comparisonBalance,
+  comparisonLimitForPlan,
+  consumeComparison
 } from './access-control'
 
 describe('access control', () => {
@@ -32,6 +34,18 @@ describe('access control', () => {
   it('uses the agreed comparison quotas', () => {
     expect(comparisonLimitForPlan('free')).toBe(1)
     expect(comparisonLimitForPlan('premium')).toBe(5)
-    expect(comparisonLimitForPlan('comparison')).toBe(5)
+    expect(comparisonBalance({ planId: 'premium', includedUsed: 2, purchasedCredits: 5 })).toEqual({
+      includedLimit: 5, includedRemaining: 3, purchasedRemaining: 5, totalRemaining: 8
+    })
+  })
+
+  it('consumes monthly premium quota before non-expiring purchased credits', () => {
+    expect(consumeComparison({ planId: 'premium', includedUsed: 4, purchasedCredits: 5 })).toEqual({
+      source: 'included', includedUsed: 5, purchasedCredits: 5
+    })
+    expect(consumeComparison({ planId: 'premium', includedUsed: 5, purchasedCredits: 5 })).toEqual({
+      source: 'purchased', includedUsed: 5, purchasedCredits: 4
+    })
+    expect(consumeComparison({ planId: 'free', includedUsed: 1, purchasedCredits: 0 })).toBeNull()
   })
 })

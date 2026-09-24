@@ -312,7 +312,7 @@ function submitComparison() {
       purchasedCredits: purchasedComparisonCredits.value
     })
     if (!quotaUse) {
-      openPricing('ใช้สิทธิ์เปรียบเทียบบุคคลครบแล้ว สามารถซื้อสิทธิ์เพิ่ม 5 คนในราคา 100 บาทและเก็บไว้ใช้ได้โดยไม่หมดอายุ')
+      openPricing('ใช้สิทธิ์เปรียบเทียบบุคคลครบแล้ว สามารถซื้อสิทธิ์เพิ่ม 5 คนในราคา 59 บาทและเก็บไว้ใช้ได้โดยไม่หมดอายุ')
       return
     }
     const { chart: otherChart, hasBirthTime } = calculateChartWithOptionalTime(comparisonForm)
@@ -846,8 +846,8 @@ submit()
           <div class="price-card-topline"><span>วางแผนล่วงหน้า</span><b>แนะนำ</b></div>
           <h3>Premium</h3>
           <div class="price-options">
-            <button type="button" @click="choosePlan('premium')"><strong>299 บาท</strong><small>ต่อเดือน</small></button>
-            <button type="button" @click="choosePlan('premium')"><strong>2,490 บาท</strong><small>ต่อปี · ประหยัด 1,098 บาท</small></button>
+            <button type="button" @click="choosePlan('premium')"><strong>149 บาท</strong><small>ต่อเดือน</small></button>
+            <button type="button" @click="choosePlan('premium')"><strong>999 บาท</strong><small>ต่อปี · ประหยัด 789 บาท</small></button>
           </div>
           <ul>
             <li><i class="pi pi-check" /> ถนนสิบปีครบทุกช่วง</li>
@@ -862,7 +862,7 @@ submit()
         <article class="price-card comparison-card">
           <div class="price-card-topline"><span>ใช้เฉพาะความสัมพันธ์</span><b>ไม่หมดอายุ</b></div>
           <h3>เปรียบเทียบบุคคล</h3>
-          <div class="single-price"><strong>100 บาท</strong><small>ใช้ได้ 5 คน เก็บสิทธิ์ไว้ได้โดยไม่จำกัดเวลา</small></div>
+          <div class="single-price"><strong>59 บาท</strong><small>ใช้ได้ 5 คน เก็บสิทธิ์ไว้ได้โดยไม่จำกัดเวลา</small></div>
           <ul>
             <li><i class="pi pi-check" /> เลือกคนและเรื่องที่อยากดู</li>
             <li><i class="pi pi-check" /> เปิดรายงานเดิมซ้ำได้</li>

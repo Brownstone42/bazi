@@ -5,12 +5,12 @@ export const accessPlans = {
   },
   premium: {
     id: 'premium', label: 'Premium', comparisonLimit: 5,
-    monthlyPrice: 299, yearlyPrice: 2490,
+    monthlyPrice: 149, yearlyPrice: 999,
     description: 'เปิดเครื่องมือวางแผนล่วงหน้าและเปรียบเทียบบุคคล 5 คนต่อเดือน'
   },
   comparison: {
     id: 'comparison', label: 'สิทธิ์เปรียบเทียบบุคคล', purchasedCredits: 5,
-    price: 100,
+    price: 59,
     description: 'เปรียบเทียบบุคคลได้ 5 คนและเก็บสิทธิ์ไว้ใช้ได้โดยไม่หมดอายุ'
   }
 }

@@ -5,6 +5,7 @@ import DatePicker from 'primevue/datepicker'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Textarea from 'primevue/textarea'
+import MobileDateTimePicker from './components/MobileDateTimePicker.vue'
 import {
   branchThaiLabel,
   calculateChart,
@@ -630,8 +631,10 @@ submit()
         <div class="field-grid">
           <label class="field">
             <span>วันเกิด (วัน/เดือน/ปี ค.ศ.)</span>
+            <MobileDateTimePicker v-model="form.birthDate" type="date" placeholder="เลือกวันเกิด" />
             <DatePicker
               v-model="form.birthDate"
+              class="desktop-date-time-picker"
               date-format="dd/mm/yy"
               update-model-type="string"
               placeholder="วว/ดด/ปปปป"
@@ -642,8 +645,10 @@ submit()
           </label>
           <label class="field">
             <span>เวลาเกิด (รูปแบบ 24 ชั่วโมง)</span>
+            <MobileDateTimePicker v-model="form.birthTime" type="time" placeholder="เลือกเวลาเกิด" />
             <DatePicker
               v-model="birthTimePicker"
+              class="desktop-date-time-picker"
               time-only
               hour-format="24"
               show-icon
@@ -904,8 +909,10 @@ submit()
           </label>
           <label class="field">
             <span>วันเกิด (วัน/เดือน/ปี ค.ศ.)</span>
+            <MobileDateTimePicker v-model="comparisonForm.birthDate" type="date" placeholder="เลือกวันเกิด" />
             <DatePicker
               v-model="comparisonForm.birthDate"
+              class="desktop-date-time-picker"
               date-format="dd/mm/yy"
               update-model-type="string"
               placeholder="วว/ดด/ปปปป"
@@ -916,8 +923,15 @@ submit()
           </label>
           <label class="field">
             <span>เวลาเกิด (24 ชั่วโมง) <small>(ไม่บังคับ)</small></span>
+            <MobileDateTimePicker
+              v-model="comparisonForm.birthTime"
+              type="time"
+              allow-empty
+              placeholder="เลือกเวลาหรือระบุว่าไม่ทราบ"
+            />
             <DatePicker
               v-model="comparisonTimePicker"
+              class="desktop-date-time-picker"
               time-only
               hour-format="24"
               show-icon

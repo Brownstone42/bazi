@@ -45,7 +45,10 @@ function createSupabaseRest(config, fetchImpl = fetch) {
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) })
     })
-    if (!response.ok) throw new Error(`Database request failed (${response.status})`)
+    if (!response.ok) {
+      const details = await response.text().catch(() => '')
+      throw new Error(`Database request failed (${response.status}): ${details.slice(0, 1200)}`)
+    }
     if (response.status === 204) return null
     return response.json()
   }
@@ -289,6 +292,9 @@ export default async (request) => {
       comparisonReports: account.comparisonReports.map(reportPayload)
     })
   } catch (error) {
+    console.error('line-session failed', {
+      message: error instanceof Error ? error.message : String(error)
+    })
     const configurationError = error instanceof Error && error.message.startsWith('Missing server configuration')
     const authenticationError = error instanceof Error && (
       error.message.includes('LINE ID token') || error.message.includes('token verification')

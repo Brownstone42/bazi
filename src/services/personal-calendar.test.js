@@ -26,7 +26,7 @@ describe('personal calendar', () => {
     expect(month.days.every((day) => day.dailyAdvice)).toBe(true)
     expect(new Set(month.days.map((day) => day.dailyAdvice)).size).toBeGreaterThanOrEqual(5)
     expect(new Set(month.days.map((day) => day.level)).size).toBeGreaterThan(1)
-    expect(month.days.some((day) => day.summary.includes('แรงเสียดทาน'))).toBe(true)
+    expect(month.days.some((day) => day.summary.includes('ไม่เป็นไปตามแผน'))).toBe(true)
   })
 
   it('changes the advice when the user changes focus', () => {
@@ -50,6 +50,11 @@ describe('personal calendar', () => {
     expect(month.days[0].topicReadings.map((topic) => topic.focus)).toEqual([
       'work', 'money', 'love', 'communication', 'wellbeing'
     ])
+    expect(month.days.every((day) => !day.summary.includes('ไม่รีบเอาข้อสรุป'))).toBe(true)
+    expect(month.days.every((day) => !day.dailyAdvice.includes('เรื่องหนึ่งไปตัดสินอีกเรื่องหนึ่ง'))).toBe(true)
+    expect(month.days.every((day) => day.summary.includes('วันนี้'))).toBe(true)
+    expect(month.days.every((day) => day.summary.length < 240)).toBe(true)
+    expect(month.days.every((day) => day.dailyAdvice.length < 350)).toBe(true)
   })
 
   it('moves across year boundaries', () => {

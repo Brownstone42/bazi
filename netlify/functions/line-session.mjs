@@ -50,7 +50,8 @@ function createSupabaseRest(config, fetchImpl = fetch) {
       throw new Error(`Database request failed (${response.status}): ${details.slice(0, 1200)}`)
     }
     if (response.status === 204) return null
-    return response.json()
+    const responseText = await response.text()
+    return responseText ? JSON.parse(responseText) : null
   }
 }
 

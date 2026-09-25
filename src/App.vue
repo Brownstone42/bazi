@@ -29,7 +29,12 @@ import {
   consumeComparison
 } from './services/access-control'
 import { initializeLineSession } from './services/liff-auth'
-import { birthProfileToForm, syncLineAccount } from './services/account-api'
+import {
+  birthProfileToForm,
+  reserveComparison,
+  saveComparisonResult,
+  syncLineAccount
+} from './services/account-api'
 
 const isBlindTestMode = new URLSearchParams(window.location.search).get('mode') === 'blind-test'
 const previewPlan = new URLSearchParams(window.location.search).get('preview')
@@ -136,6 +141,8 @@ const blindAttempts = ref(0)
 const selectedLuckCycleIndex = ref(null)
 const comparisonResult = ref(null)
 const comparisonError = ref('')
+const comparisonSubmitting = ref(false)
+const savedComparisons = ref([])
 const activeView = ref(viewFromHash())
 const luckTrack = ref(null)
 const accessPlan = ref(previewPlan === 'premium' ? 'premium' : 'free')
@@ -242,6 +249,32 @@ function applyEntitlement(entitlement) {
   if (!previewPlan) accessPlan.value = entitlement.planId
   comparisonIncludedUsed.value = entitlement.includedComparisonUsed ?? 0
   if (previewPlan !== 'comparison') purchasedComparisonCredits.value = entitlement.purchasedComparisonCredits ?? 0
+}
+
+function upsertSavedComparison(report) {
+  if (!report?.id) return
+  savedComparisons.value = [report, ...savedComparisons.value.filter((item) => item.id !== report.id)]
+}
+
+function comparisonContextLabel(report) {
+  const relationship = relationshipOptions.find((item) => item.value === report.relationship)?.label ?? 'อีกฝ่าย'
+  const focus = comparisonFocusOptions.find((item) => item.value === report.focus)?.label ?? 'ภาพรวมความสัมพันธ์'
+  return `${relationship} · ${focus}`
+}
+
+async function openSavedComparison(report) {
+  Object.assign(comparisonForm, {
+    name: report.name ?? '',
+    birthDate: report.birthDate,
+    birthTime: report.birthTime ?? '',
+    gender: report.gender,
+    timezoneId: report.timezoneId,
+    relationship: report.relationship,
+    focus: report.focus
+  })
+  await nextTick()
+  comparisonResult.value = report.result
+  comparisonError.value = report.result ? '' : 'รายการนี้ยังสร้างคำอ่านไม่เสร็จ กรุณากดดูคำแนะนำอีกครั้ง'
 }
 
 async function saveBirthProfile(input) {
@@ -352,6 +385,7 @@ async function connectLineAccount() {
       try {
         const account = await syncLineAccount({ idToken: session.idToken })
         applyEntitlement(account.entitlement)
+        savedComparisons.value = account.comparisonReports ?? []
         const storedBirthProfile = birthProfileToForm(account.birthProfile)
         if (storedBirthProfile) {
           Object.assign(form, storedBirthProfile)
@@ -369,12 +403,45 @@ async function connectLineAccount() {
   }
 }
 
-function submitComparison() {
+async function submitComparison() {
   comparisonError.value = ''
   comparisonResult.value = null
+  comparisonSubmitting.value = true
 
   try {
     if (!chart.value) throw new Error('กรุณาคำนวณพื้นดวงของคุณก่อน')
+    const { chart: otherChart, hasBirthTime } = calculateChartWithOptionalTime(comparisonForm)
+    const generatedResult = interpretCompatibility(chart.value, otherChart, {
+      relationship: comparisonForm.relationship,
+      focus: comparisonForm.focus,
+      hasBirthTime
+    })
+
+    if (lineSession.idToken) {
+      const reservation = await reserveComparison({
+        idToken: lineSession.idToken,
+        comparisonProfile: { ...comparisonForm }
+      })
+      applyEntitlement(reservation.entitlement)
+      if (!reservation.allowed) {
+        openPricing('ใช้สิทธิ์เปรียบเทียบบุคคลครบแล้ว สามารถซื้อสิทธิ์เพิ่ม 5 คนในราคา 59 บาทและเก็บไว้ใช้ได้โดยไม่หมดอายุ')
+        return
+      }
+      if (reservation.existing && reservation.report.result) {
+        upsertSavedComparison(reservation.report)
+        await openSavedComparison(reservation.report)
+        return
+      }
+      comparisonResult.value = generatedResult
+      const saved = await saveComparisonResult({
+        idToken: lineSession.idToken,
+        reportId: reservation.report.id,
+        result: generatedResult
+      })
+      upsertSavedComparison(saved.report)
+      return
+    }
+
     const quotaUse = consumeComparison({
       planId: accessPlan.value,
       includedUsed: comparisonIncludedUsed.value,
@@ -384,16 +451,13 @@ function submitComparison() {
       openPricing('ใช้สิทธิ์เปรียบเทียบบุคคลครบแล้ว สามารถซื้อสิทธิ์เพิ่ม 5 คนในราคา 59 บาทและเก็บไว้ใช้ได้โดยไม่หมดอายุ')
       return
     }
-    const { chart: otherChart, hasBirthTime } = calculateChartWithOptionalTime(comparisonForm)
-    comparisonResult.value = interpretCompatibility(chart.value, otherChart, {
-      relationship: comparisonForm.relationship,
-      focus: comparisonForm.focus,
-      hasBirthTime
-    })
+    comparisonResult.value = generatedResult
     comparisonIncludedUsed.value = quotaUse.includedUsed
     purchasedComparisonCredits.value = quotaUse.purchasedCredits
   } catch (cause) {
     comparisonError.value = cause instanceof Error ? cause.message : 'ไม่สามารถเปรียบเทียบความสัมพันธ์ได้'
+  } finally {
+    comparisonSubmitting.value = false
   }
 }
 
@@ -807,6 +871,26 @@ submit()
         <small>{{ accessPlans[accessPlan].label }}</small>
       </div>
 
+      <div v-if="savedComparisons.length" class="saved-comparisons">
+        <div class="saved-comparisons-heading">
+          <div><span>รายการที่เคยดู</span><strong>เปิดดูซ้ำได้โดยไม่หักสิทธิ์เพิ่ม</strong></div>
+          <small>{{ savedComparisons.length }} รายการ</small>
+        </div>
+        <div class="saved-comparisons-list">
+          <button
+            v-for="report in savedComparisons"
+            :key="report.id"
+            type="button"
+            :class="{ pending: !report.result }"
+            @click="openSavedComparison(report)"
+          >
+            <span class="saved-comparison-icon"><i class="pi pi-users" /></span>
+            <span><strong>{{ report.name || 'อีกฝ่าย' }}</strong><small>{{ comparisonContextLabel(report) }}</small></span>
+            <i :class="report.result ? 'pi pi-chevron-right' : 'pi pi-refresh'" />
+          </button>
+        </div>
+      </div>
+
       <form class="comparison-form" @submit.prevent="submitComparison">
         <div class="comparison-form-heading">
           <span class="step">01</span>
@@ -880,7 +964,14 @@ submit()
         </div>
 
         <div v-if="comparisonError" class="comparison-error"><i class="pi pi-exclamation-circle" />{{ comparisonError }}</div>
-        <Button type="submit" label="ดูคำแนะนำความสัมพันธ์" icon="pi pi-heart" class="calculate-button" />
+        <Button
+          type="submit"
+          label="ดูคำแนะนำความสัมพันธ์"
+          icon="pi pi-heart"
+          class="calculate-button"
+          :loading="comparisonSubmitting"
+          :disabled="comparisonSubmitting"
+        />
       </form>
 
       <article v-if="comparisonResult" class="comparison-result">

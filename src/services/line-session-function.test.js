@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { normalizeBirthProfile, verifyLineIdToken } from '../../netlify/functions/line-session.mjs'
+import {
+  comparisonFingerprint,
+  normalizeBirthProfile,
+  normalizeComparisonProfile,
+  verifyLineIdToken
+} from '../../netlify/functions/line-session.mjs'
 
 describe('LINE account function', () => {
   it('verifies the ID token with LINE and checks the channel audience', async () => {
@@ -28,5 +33,15 @@ describe('LINE account function', () => {
     })).toEqual({
       birth_date: '1989-08-26', birth_time: '11:30', gender: 'male', timezone_id: 'Asia/Bangkok'
     })
+  })
+
+  it('normalizes an optional comparison birth time and creates a stable identity', () => {
+    const profile = normalizeComparisonProfile({
+      name: 'คุณบี', birthDate: '02/01/1990', birthTime: '', gender: 'female',
+      timezoneId: 'Asia/Bangkok', relationship: 'partner', focus: 'love'
+    })
+    expect(profile.birth_time).toBeNull()
+    expect(comparisonFingerprint(profile)).toBe(comparisonFingerprint({ ...profile, person_name: 'ชื่อใหม่' }))
+    expect(comparisonFingerprint(profile)).not.toBe(comparisonFingerprint({ ...profile, focus: 'overview' }))
   })
 })

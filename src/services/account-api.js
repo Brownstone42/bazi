@@ -1,13 +1,33 @@
-export async function syncLineAccount({ idToken, birthProfile, fetchImpl = fetch }) {
+async function callLineSession({ idToken, payload = {}, fetchImpl = fetch }) {
   if (!idToken) throw new Error('ไม่พบข้อมูลยืนยันตัวตนจาก LINE')
   const response = await fetchImpl('/api/line-session', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ idToken, ...(birthProfile ? { birthProfile } : {}) })
+    body: JSON.stringify({ idToken, ...payload })
   })
-  const payload = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(payload.error || 'ไม่สามารถเชื่อมบัญชีผู้ใช้ได้')
-  return payload
+  const responsePayload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(responsePayload.error || 'ไม่สามารถเชื่อมบัญชีผู้ใช้ได้')
+  return responsePayload
+}
+
+export function syncLineAccount({ idToken, birthProfile, fetchImpl = fetch }) {
+  return callLineSession({ idToken, payload: { action: 'sync', ...(birthProfile ? { birthProfile } : {}) }, fetchImpl })
+}
+
+export function reserveComparison({ idToken, comparisonProfile, fetchImpl = fetch }) {
+  return callLineSession({
+    idToken,
+    payload: { action: 'reserveComparison', comparisonProfile },
+    fetchImpl
+  })
+}
+
+export function saveComparisonResult({ idToken, reportId, result, fetchImpl = fetch }) {
+  return callLineSession({
+    idToken,
+    payload: { action: 'saveComparisonResult', reportId, result },
+    fetchImpl
+  })
 }
 
 export function birthProfileToForm(profile) {

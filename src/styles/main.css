@@ -176,6 +176,21 @@ h1 { margin-bottom: 5px; color: #3b161b; font-family: Georgia, "Noto Serif Thai"
 .quota-status span { margin-bottom: 2px; color: #8b7b70; font-size: .65rem; }
 .quota-status strong { font-size: .78rem; }
 .quota-status > small { padding: 6px 9px; color: #7a2936; background: #fffaf4; border-radius: 999px; font-size: .62rem; font-weight: 800; }
+.saved-comparisons { margin-bottom: 14px; padding: 14px; background: #fffaf4; border: 1px solid #eadfd5; border-radius: 15px; }
+.saved-comparisons-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.saved-comparisons-heading span, .saved-comparisons-heading strong { display: block; }
+.saved-comparisons-heading span { color: #7a2936; font-size: .76rem; font-weight: 800; }
+.saved-comparisons-heading strong { margin-top: 2px; color: #8b7b70; font-size: .66rem; font-weight: 500; }
+.saved-comparisons-heading > small { color: #9a8778; font-size: .64rem; white-space: nowrap; }
+.saved-comparisons-list { display: grid; gap: 8px; }
+.saved-comparisons-list button { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; width: 100%; padding: 11px; color: #563a34; text-align: left; background: #fff; border: 1px solid #eee3da; border-radius: 12px; cursor: pointer; }
+.saved-comparisons-list button.pending { border-style: dashed; }
+.saved-comparisons-list button > span:nth-child(2) { min-width: 0; }
+.saved-comparisons-list button strong, .saved-comparisons-list button small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.saved-comparisons-list button strong { font-size: .75rem; }
+.saved-comparisons-list button small { margin-top: 2px; color: #8a7c74; font-size: .64rem; }
+.saved-comparisons-list button > i { color: #9b7a66; font-size: .7rem; }
+.saved-comparison-icon { display: grid; width: 34px; height: 34px; color: #7a2936; background: #f5e8e3; border-radius: 10px; place-items: center; }
 
 .pricing-section { margin-top: 16px; padding: 20px; background: rgba(255,253,248,.94); border: 1px solid rgba(85,59,48,.12); border-radius: 20px; box-shadow: 0 16px 40px rgba(75,61,49,.08); }
 .pricing-heading { max-width: 720px; margin: 0 auto 22px; text-align: center; }
@@ -430,6 +445,7 @@ h1 { margin-bottom: 5px; color: #3b161b; font-family: Georgia, "Noto Serif Thai"
   .current-luck-grid { grid-template-columns: 1fr 1fr; }
   .comparison-result-grid { grid-template-columns: 1fr 1fr; }
   .comparison-result-card.featured { grid-column: 1 / -1; }
+  .saved-comparisons-list { grid-template-columns: 1fr 1fr; }
   .pricing-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; }
   .premium-card { transform: translateY(-7px); }
   .calendar-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }

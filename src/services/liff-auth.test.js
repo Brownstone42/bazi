@@ -23,6 +23,7 @@ describe('LIFF authentication', () => {
       init: vi.fn(),
       isInClient: vi.fn(() => true),
       isLoggedIn: vi.fn(() => true),
+      getIDToken: vi.fn(() => 'verified-id-token'),
       getProfile: vi.fn(async () => ({
         userId: 'U123', displayName: 'คุณเอ', pictureUrl: 'https://example.com/avatar.jpg'
       }))
@@ -34,6 +35,7 @@ describe('LIFF authentication', () => {
 
     expect(liffClient.init).toHaveBeenCalledWith({ liffId: 'test-liff-id' })
     expect(session.status).toBe('authenticated')
+    expect(session.idToken).toBe('verified-id-token')
     expect(session.profile.displayName).toBe('คุณเอ')
   })
 

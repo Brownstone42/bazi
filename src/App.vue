@@ -29,6 +29,7 @@ import {
   consumeComparison
 } from './services/access-control'
 import { initializeLineSession } from './services/liff-auth'
+import { birthProfileToForm, syncLineAccount } from './services/account-api'
 
 const isBlindTestMode = new URLSearchParams(window.location.search).get('mode') === 'blind-test'
 const previewPlan = new URLSearchParams(window.location.search).get('preview')
@@ -146,6 +147,7 @@ const selectedCalendarDayKey = ref(null)
 const calendarCursor = reactive({ year: new Date().getFullYear(), month: new Date().getMonth() + 1 })
 const calendarWeekdays = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา']
 const lineSession = reactive({ status: 'initializing', inClient: false, profile: null })
+const accountSync = reactive({ status: 'idle', error: '' })
 
 const blindFocusOptions = [
   { label: 'ภาพรวมบุคลิก', value: 'identity' },
@@ -212,6 +214,12 @@ const selectedCalendarDay = computed(() => {
     days[0] ??
     null
 })
+const lineAccountSubtitle = computed(() => {
+  if (accountSync.status === 'syncing' || accountSync.status === 'saving') return 'กำลังโหลดข้อมูลส่วนตัว'
+  if (accountSync.status === 'synced') return lineSession.inClient ? 'เปิดผ่านแอป LINE · บันทึกข้อมูลแล้ว' : 'เข้าสู่ระบบและบันทึกข้อมูลแล้ว'
+  if (accountSync.status === 'error') return 'เข้าสู่ระบบ LINE แล้ว · ยังไม่เชื่อมฐานข้อมูล'
+  return lineSession.inClient ? 'เปิดผ่านแอป LINE' : 'เข้าสู่ระบบด้วย LINE แล้ว'
+})
 
 function viewFromHash() {
   if (window.location.hash === '#luck') return 'luck'
@@ -221,15 +229,41 @@ function viewFromHash() {
   return 'profile'
 }
 
+function calculateAndDisplay(input) {
+  chart.value = calculateChart(input)
+  calculatedInput.value = input
+  selectedLuckCycleIndex.value = null
+  Object.keys(feedback).forEach((key) => delete feedback[key])
+  if (isBlindTestMode) startBlindTest()
+}
+
+function applyEntitlement(entitlement) {
+  if (!entitlement) return
+  if (!previewPlan) accessPlan.value = entitlement.planId
+  comparisonIncludedUsed.value = entitlement.includedComparisonUsed ?? 0
+  if (previewPlan !== 'comparison') purchasedComparisonCredits.value = entitlement.purchasedComparisonCredits ?? 0
+}
+
+async function saveBirthProfile(input) {
+  if (!lineSession.idToken) return
+  accountSync.status = 'saving'
+  accountSync.error = ''
+  try {
+    const account = await syncLineAccount({ idToken: lineSession.idToken, birthProfile: input })
+    applyEntitlement(account.entitlement)
+    accountSync.status = 'synced'
+  } catch (cause) {
+    accountSync.status = 'error'
+    accountSync.error = cause instanceof Error ? cause.message : 'ไม่สามารถบันทึกข้อมูลได้'
+  }
+}
+
 function submit() {
   error.value = ''
   try {
     const input = { ...form }
-    chart.value = calculateChart(input)
-    calculatedInput.value = input
-    selectedLuckCycleIndex.value = null
-    Object.keys(feedback).forEach((key) => delete feedback[key])
-    if (isBlindTestMode) startBlindTest()
+    calculateAndDisplay(input)
+    saveBirthProfile(input)
   } catch (cause) {
     chart.value = null
     calculatedInput.value = null
@@ -289,7 +323,7 @@ function moveCalendarMonth(amount) {
 
 function selectCalendarDay(day) {
   if (!canAccessCalendarDay(day, accessPlan.value)) {
-    openPricing('ผู้ใช้ฟรีดูรายละเอียดได้เฉพาะวันนี้ สมัคร Premium เพื่อเปิดทั้งเดือน')
+    openPricing('ผู้ใช้ฟรีดูรายละเอียดได้เฉพาะวันนี้ สมัคร Premium เพื่อดูรายละเอียดได้ทั้งเดือนนี้และเดือนหน้า')
     return
   }
   selectedCalendarDayKey.value = day.key
@@ -310,7 +344,25 @@ async function connectLineAccount() {
   }
 
   try {
-    Object.assign(lineSession, await initializeLineSession({ liffId }))
+    const session = await initializeLineSession({ liffId })
+    Object.assign(lineSession, session)
+    if (session.status === 'authenticated' && session.idToken) {
+      accountSync.status = 'syncing'
+      accountSync.error = ''
+      try {
+        const account = await syncLineAccount({ idToken: session.idToken })
+        applyEntitlement(account.entitlement)
+        const storedBirthProfile = birthProfileToForm(account.birthProfile)
+        if (storedBirthProfile) {
+          Object.assign(form, storedBirthProfile)
+          calculateAndDisplay({ ...form })
+        }
+        accountSync.status = 'synced'
+      } catch (cause) {
+        accountSync.status = 'error'
+        accountSync.error = cause instanceof Error ? cause.message : 'ไม่สามารถโหลดบัญชีผู้ใช้ได้'
+      }
+    }
   } catch {
     lineSession.status = 'error'
     lineSession.profile = null
@@ -444,7 +496,7 @@ submit()
           <strong v-else-if="lineSession.status === 'error'">เชื่อม LINE ไม่สำเร็จ</strong>
           <strong v-else-if="lineSession.status === 'unconfigured'">ยังไม่ได้ตั้งค่า LINE</strong>
           <strong v-else>กำลังเชื่อม LINE</strong>
-          <small v-if="lineSession.status === 'authenticated'">{{ lineSession.inClient ? 'เปิดผ่านแอป LINE' : 'เข้าสู่ระบบด้วย LINE แล้ว' }}</small>
+          <small v-if="lineSession.status === 'authenticated'">{{ lineAccountSubtitle }}</small>
           <small v-else-if="lineSession.status === 'local'">หน้าเว็บจริงจะเข้าสู่ระบบด้วย LINE</small>
           <small v-else-if="lineSession.status === 'error'">ลองปิดแล้วเปิดจากลิงก์ LIFF อีกครั้ง</small>
           <small v-else-if="lineSession.status === 'unconfigured'">กรุณากำหนด LIFF ID</small>

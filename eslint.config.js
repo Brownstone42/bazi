@@ -15,6 +15,14 @@ export default [
     }
   },
   {
+    files: ['netlify/functions/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: { ...globals.node, ...globals.browser }
+    }
+  },
+  {
     files: ['**/*.{js,vue}'],
     languageOptions: {
       ecmaVersion: 'latest',

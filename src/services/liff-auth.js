@@ -35,6 +35,7 @@ export async function initializeLineSession({
   return {
     status: 'authenticated',
     inClient,
+    idToken: client.getIDToken(),
     profile: {
       userId: profile.userId,
       displayName: profile.displayName,

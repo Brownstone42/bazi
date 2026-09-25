@@ -37,6 +37,15 @@ VITE_LIFF_ID=1234567890-AbCdEfgh
 
 LIFF ID เป็นข้อมูลฝั่งหน้าเว็บและไม่ใช่ Channel Secret ห้ามนำ Channel Secret มาใส่ในตัวแปร `VITE_` หรือ commit ลง repository
 
+## Supabase accounts
+
+1. เปิด SQL Editor ใน Supabase แล้วรันไฟล์ `supabase/migrations/202609250001_initial_accounts.sql`
+2. ใน Supabase ไปที่ **Settings > API Keys** แล้วสร้างหรือคัดลอก Secret key ที่ขึ้นต้นด้วย `sb_secret_`
+3. ใน Netlify ไปที่ **Project configuration > Environment variables** แล้วเพิ่ม `SUPABASE_SECRET_KEY` โดยไม่ใส่ค่านี้ในไฟล์หรือ repository
+4. Trigger deploy ใหม่หนึ่งครั้ง หลังตั้ง environment variable แล้ว
+
+Netlify Function จะตรวจ LINE ID token กับ LINE Platform ก่อนสร้างบัญชีหรืออ่านข้อมูล และตารางทั้งหมดปิดการเข้าถึงตรงจาก public key ด้วย RLS
+
 > ระบบใช้เวลาท้องถิ่นตาม timezone ที่ผู้ใช้เลือก โดยล็อกกฎเปลี่ยนวันไว้ที่ 23:00
 
 ## Interpretation specifications

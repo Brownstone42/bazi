@@ -16,6 +16,16 @@ export function billingConfig(env = process.env) {
 }
 export function stripeClient(config) { return new Stripe(config.secret, { maxNetworkRetries: 2, timeout: 15000 }) }
 export function idOf(value) { return typeof value === 'string' ? value : value?.id }
+export function subscriptionStatus(subscription) {
+  const cancelAt = Number.isFinite(subscription.cancel_at) && subscription.cancel_at > 0 ? subscription.cancel_at : null
+  return {
+    status: subscription.status,
+    cancelAtPeriodEnd: subscription.cancel_at_period_end === true,
+    cancelAt,
+    renewalCanceled: subscription.status === 'canceled' || subscription.cancel_at_period_end === true || cancelAt !== null,
+    periodEnd: subscription.items?.data?.[0]?.current_period_end ?? null
+  }
+}
 export function validatePrice(price, product) {
   if (!product || price.livemode || !price.active || price.currency !== 'thb' || price.unit_amount !== product.amount
     || (product.interval ? price.recurring?.interval !== product.interval || price.recurring?.interval_count !== 1 : Boolean(price.recurring))) throw new Error('invalid_price')

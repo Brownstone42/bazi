@@ -9,6 +9,7 @@ const error = ref('')
 const labels = { monthly: 'Premium รายเดือน · 149 บาท/เดือน', yearly: 'Premium รายปี · 999 บาท/ปี', comparison: 'เครดิตเปรียบเทียบ 5 คน · 59 บาท' }
 const subscriptionLabels = { active: 'กำลังเป็นสมาชิก', past_due: 'ชำระรอบล่าสุดไม่สำเร็จ กรุณาตรวจสอบบัตร', unpaid: 'ยังไม่ได้ชำระเงิน', canceled: 'ยกเลิกแล้ว', incomplete: 'ยังสมัครไม่เสร็จ', incomplete_expired: 'รายการสมัครหมดเวลา', trialing: 'ช่วงทดลอง', paused: 'พักสมาชิก' }
 function dateLabel(value) { return new Intl.DateTimeFormat('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'medium' }).format(new Date(value)) }
+function isRenewalCanceled(subscription) { return subscription.renewalCanceled ?? (subscription.cancelAtPeriodEnd || Boolean(subscription.cancelAt)) }
 async function refresh() {
   if (!props.idToken || busy.value) return
   busy.value = true
@@ -51,10 +52,11 @@ watch(() => props.idToken, refresh)
     <p v-if="local">บัญชีจำลองบน localhost ยังจ่ายผ่าน Stripe ไม่ได้ ต้องใช้บัญชี LINE และตั้งค่าระบบทดสอบฝั่งเซิร์ฟเวอร์ก่อน</p>
     <p v-if="error" role="alert">{{ error }}</p>
     <template v-if="status?.enabled">
-      <div v-for="(subscription, index) in status.subscriptions" :key="index" class="subscription-status" :class="{ 'renewal-off': subscription.cancelAtPeriodEnd && subscription.status !== 'canceled' }" role="status">
-        <template v-if="subscription.cancelAtPeriodEnd && subscription.status !== 'canceled'">
+      <div v-for="(subscription, index) in status.subscriptions" :key="index" class="subscription-status" :class="{ 'renewal-off': isRenewalCanceled(subscription) && subscription.status !== 'canceled' }" role="status">
+        <template v-if="isRenewalCanceled(subscription) && subscription.status !== 'canceled'">
           <strong><i class="pi pi-calendar-times" aria-hidden="true" /> ยกเลิกต่ออายุแล้ว</strong>
-          <p>ระบบจะไม่ต่ออายุสมาชิกอัตโนมัติในรอบถัดไป</p>
+          <p v-if="subscription.cancelAt && subscription.periodEnd && subscription.cancelAt > subscription.periodEnd">กำหนดยกเลิกวันที่ {{ dateLabel(subscription.cancelAt * 1000) }} ก่อนถึงวันนั้นอาจมีการเรียกเก็บตามรอบเดิม</p>
+          <p v-else>ระบบจะไม่ต่ออายุสมาชิกอัตโนมัติในรอบถัดไป</p>
           <p v-if="subscription.periodEnd && ['active', 'trialing'].includes(subscription.status)">ยังใช้ Premium ได้ถึง <b>{{ dateLabel(subscription.periodEnd * 1000) }}</b></p>
           <p v-else>ตรวจวันสิ้นสุดสิทธิ์ที่ชำระแล้วในส่วนสมาชิกของฉันด้านบน</p>
           <small>เครดิตซื้อเพิ่มยังอยู่ ไม่ถูกลบจากการยกเลิกต่ออายุ</small>

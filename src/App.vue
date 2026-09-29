@@ -473,8 +473,10 @@ function choosePlan(planId, cycle = selectedBillingCycle.value) {
 
 async function refreshBillingAccount(billingStatus) {
   const subscriptions = billingStatus?.subscriptions ?? []
-  renewalCanceled.value = subscriptions.some(sub => sub.cancelAtPeriodEnd && ['active', 'trialing', 'past_due', 'unpaid'].includes(sub.status))
-    && !subscriptions.some(sub => sub.status === 'active' && !sub.cancelAtPeriodEnd)
+  const isCanceled = sub => sub.renewalCanceled ?? (sub.cancelAtPeriodEnd || Boolean(sub.cancelAt))
+  renewalCanceled.value = subscriptions.some(sub => isCanceled(sub) && ['active', 'trialing', 'past_due', 'unpaid'].includes(sub.status)
+    && (!sub.cancelAt || !sub.periodEnd || sub.cancelAt <= sub.periodEnd))
+    && !subscriptions.some(sub => sub.status === 'active' && !isCanceled(sub))
   if (!lineSession.idToken) return
   try {
     const account = await syncLineAccount({ idToken: lineSession.idToken })

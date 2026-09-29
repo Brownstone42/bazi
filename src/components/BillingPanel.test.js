@@ -7,6 +7,14 @@ vi.mock('../services/billing-api', () => ({ billingRequest: vi.fn(), trustedBill
 beforeEach(() => vi.clearAllMocks())
 enableAutoUnmount(afterEach)
 describe('billing panel', () => {
+  it('shows canceled renewal for an active subscription with only cancel_at set', async () => {
+    billingRequest.mockResolvedValue({ enabled: true, payments: [], subscriptions: [{ status: 'active', cancelAtPeriodEnd: false, cancelAt: 1793206800, renewalCanceled: true, periodEnd: 1793206800 }] })
+    const wrapper = mount(BillingPanel, { props: { idToken: 'token' } })
+    await flushPromises()
+    expect(wrapper.get('.renewal-off').text()).toContain('ยกเลิกต่ออายุแล้ว')
+    expect(wrapper.text()).toContain('ยังใช้ Premium ได้ถึง')
+    expect(wrapper.text()).not.toContain('เปิดต่ออายุอัตโนมัติ')
+  })
   it('refreshes cancellation after returning from Stripe and removes listeners on unmount', async () => {
     const active = { enabled: true, payments: [], hasCustomer: true, subscriptions: [{ status: 'active', cancelAtPeriodEnd: false, periodEnd: 1793206800 }] }
     billingRequest.mockResolvedValueOnce(active)

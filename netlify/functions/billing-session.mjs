@@ -1,5 +1,5 @@
 import { createSupabaseRest, requiredEnvironment, verifyLineIdToken } from './line-session.mjs'
-import { billingConfig, stripeClient, products, validatePrice, checkoutParameters } from '../lib/billing.mjs'
+import { billingConfig, stripeClient, products, validatePrice, checkoutParameters, subscriptionStatus } from '../lib/billing.mjs'
 
 export default async request => {
   if (request.method !== 'POST') return Response.json({ error: 'Method not allowed' }, { status: 405 })
@@ -24,7 +24,7 @@ export default async request => {
     const subscriptions = await stripe.subscriptions.list({ customer: customer.stripe_customer_id, status: 'all', limit: 100 })
     if (body.action === 'status') {
       const payments = await rest('billing_payments?user_id=eq.' + user.id + '&select=id,product,amount,created_at&order=created_at.desc&limit=20')
-      return Response.json({ enabled: true, testMode: true, payments, hasCustomer: true, subscriptions: subscriptions.data.map(sub => ({ status: sub.status, cancelAtPeriodEnd: sub.cancel_at_period_end, periodEnd: sub.items.data[0]?.current_period_end ?? null })) })
+      return Response.json({ enabled: true, testMode: true, payments, hasCustomer: true, subscriptions: subscriptions.data.map(subscriptionStatus) }, { headers: { 'Cache-Control': 'no-store' } })
     }
     if (body.action === 'portal') {
       const portalConfig = await stripe.billingPortal.configurations.create({ features: {

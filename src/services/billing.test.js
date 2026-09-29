@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
 import Stripe from 'stripe'
-import { billingConfig, checkoutParameters, processBillingEvent, products, validatePrice } from '../../netlify/lib/billing.mjs'
+import { billingConfig, checkoutParameters, processBillingEvent, products, validatePrice, subscriptionStatus } from '../../netlify/lib/billing.mjs'
 import { billingRequest, trustedBillingUrl } from './billing-api'
 import webhook from '../../netlify/functions/stripe-webhook.mjs'
 
@@ -18,6 +18,14 @@ function invoiceFixture() {
   return { invoice, subscription, stripe: { invoices: { retrieve: vi.fn(async () => invoice) }, subscriptions: { retrieve: vi.fn(async () => subscription) } }, rest: vi.fn(async () => ({ applied: true })), config }
 }
 describe('Stripe test billing', () => {
+  it('recognizes a scheduled cancellation even when cancel_at_period_end is false', () => {
+    const subscription = { status: 'active', cancel_at_period_end: false, cancel_at: 1793206800, items: { data: [{ current_period_end: 1793206800 }] } }
+    expect(subscriptionStatus(subscription)).toMatchObject({ status: 'active', cancelAtPeriodEnd: false, cancelAt: 1793206800, renewalCanceled: true, periodEnd: 1793206800 })
+    expect(subscriptionStatus({ ...subscription, cancel_at: null }).renewalCanceled).toBe(false)
+    expect(subscriptionStatus({ ...subscription, cancel_at: null, cancel_at_period_end: true }).renewalCanceled).toBe(true)
+    expect(subscriptionStatus({ ...subscription, cancel_at: null, canceled_at: 1780000000 }).renewalCanceled).toBe(false)
+    expect(subscriptionStatus({ ...subscription, status: 'canceled', cancel_at: null }).renewalCanceled).toBe(true)
+  })
   it('refuses live keys, disabled mode and untrusted return origins', () => {
     expect(billingConfig(env).origin).toBe('https://example.com')
     expect(() => billingConfig({ ...env, STRIPE_SECRET_KEY: 'sk_live_example' })).toThrow()
@@ -109,4 +117,3 @@ describe('Stripe test billing', () => {
     expect(trustedBillingUrl('https://billing.stripe.com/test')).toBe('https://billing.stripe.com/test')
   })
 })
-

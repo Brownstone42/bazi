@@ -17,6 +17,12 @@ Implemented: server-priced card Checkout, monthly/yearly recurring products, one
 7. Connect a LINE test login whose return URL points to this test site. Open packages, choose an option and press the separate test payment button. The localhost mock cannot authorize a Stripe payment. Plain npm run dev does not run Netlify functions.
 8. Use Stripe test cards only, per https://docs.stripe.com/testing . Never enter real card data in test mode.
 
+## Deployment checks
+
+- Keep `functions.node_bundler = "esbuild"` and `included_files = ["node_modules/stripe/**"]` in netlify.toml. The explicit inclusion preserves a resolvable `node_modules/stripe` path when packaging a Windows pnpm junction. Check both billing function ZIPs contain `node_modules/stripe/package.json` and `node_modules/stripe/esm/stripe.esm.node.js` before deploying.
+- For manual deployment use `npx --yes netlify-cli@27.10.2 deploy --prod --build --skip-functions-cache`. Do not use the old globally installed CLI 17 or deploy stale function bundles with `--no-build`.
+- After deployment, a homepage HTTP 200 is not enough: POST an unauthenticated status request to `/api/billing-session` and expect JSON HTTP 401; POST an unsigned payload to `/api/stripe-webhook` and expect HTTP 400. A 502 or missing Stripe module means deployment is broken. Then test authenticated status in LINE; these probes do not validate a payment end-to-end.
+
 ## Payment rules
 
 - Prices, customer ownership and return origin are resolved server-side; the browser cannot choose an amount, user ID, Stripe customer ID or redirect origin.
@@ -41,4 +47,3 @@ Implemented: server-priced card Checkout, monthly/yearly recurring products, one
 - A separate reviewed live-mode change is required; the current code intentionally rejects sk_live keys and live events.
 
 No Stripe account, products, keys, webhook endpoint or live deployment was created remotely in this coding session.
-

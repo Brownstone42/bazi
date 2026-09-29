@@ -17,6 +17,7 @@ const controls = {
 }
 
 const producerOf = Object.fromEntries(Object.entries(produces).map(([from, to]) => [to, from]))
+const controllerOf = Object.fromEntries(Object.entries(controls).map(([from, to]) => [to, from]))
 
 const seasonalStrength = {
   寅: { wood: 4, fire: 2, earth: -2, metal: -4, water: 1 },
@@ -128,8 +129,47 @@ function chooseUsefulElements(dayMaster, strengthLevel, patternType, climate) {
   return {
     primaryUsefulElement: output,
     supportiveElement: wealth,
+    supportiveElements: ['strong', 'very_strong'].includes(strengthLevel) ? [wealth, controllerOf[dayMaster]] : [wealth],
     cautionElements: [dayMaster, resource]
   }
+}
+
+// Explicit five-element evaluation. This remains a strength-balance heuristic,
+// not a complete classical Useful God selection or an S/A-tier classifier.
+export function evaluateElementRoles(dayMaster, strengthLevel, patternType = 'regular', climate = {}) {
+  const useful = chooseUsefulElements(dayMaster, strengthLevel, patternType, climate)
+  const supportiveElements = useful.supportiveElements ?? [useful.supportiveElement].filter(Boolean)
+  const elementAssessments = Object.fromEntries(elements.map(element => {
+    const relation = relationToDayMaster(dayMaster, element)
+    let status = 'neutral'
+    let reason = 'ธาตุนี้ได้รับการพิจารณาแล้ว แต่เกณฑ์สมดุลที่ใช้ยังไม่จัดให้เป็นฝ่ายส่งเสริมหรือฝ่ายระวัง'
+    if (patternType !== 'regular') {
+      status = 'unresolved'
+      reason = 'ดวงนี้อาจมีโครงสร้างพิเศษ จึงยังไม่จัดธาตุนี้ว่าให้คุณหรือให้โทษด้วยสูตรดวงทั่วไป'
+    } else if (element === useful.primaryUsefulElement) {
+      status = 'primary'
+      reason = climate.required ? 'ธาตุนี้ช่วยปรับสภาพเย็นของดวง จึงได้รับความสำคัญก่อนในเกณฑ์นี้'
+        : relation === 'resource' ? 'ธาตุนี้ช่วยหล่อเลี้ยงธาตุประจำตัวที่ระบบประเมินว่าอ่อน'
+          : 'ธาตุนี้ช่วยระบายกำลังจากธาตุประจำตัว ตามเกณฑ์สมดุลที่ระบบเลือกใช้'
+    } else if (supportiveElements.includes(element)) {
+      status = 'supportive'
+      reason = relation === 'power'
+        ? `ธาตุ${elementThai[element]}ช่วยควบคุมธาตุ${elementThai[dayMaster]}ที่ระบบประเมินว่าแข็ง จึงจัดเป็นฝ่ายช่วยสมดุล`
+        : relation === 'wealth' ? 'ธาตุประจำตัวต้องใช้กำลังในการควบคุมธาตุนี้ จึงช่วยลดกำลังส่วนเกินตามเกณฑ์ที่ใช้'
+          : 'ธาตุนี้ช่วยสนับสนุนกำลังของธาตุประจำตัวตามสภาพดวงที่ประเมิน'
+    } else if (useful.cautionElements.includes(element)) {
+      status = 'caution'
+      reason = ['self', 'resource'].includes(relation)
+        ? 'ธาตุนี้เพิ่มหรือหล่อเลี้ยงกำลังที่มีมากอยู่แล้ว จึงเป็นส่วนที่ควรระวังเมื่อเพิ่มเข้ามา'
+        : 'ธาตุนี้เพิ่มภาระหรือแรงควบคุมต่อดวงที่ยังต้องการกำลังสนับสนุน'
+    }
+    return [element, { element, relation, status, reason }]
+  }))
+  return { ...useful, supportiveElements, elementAssessments }
+}
+
+export function helpfulElements(assessment) {
+  return [...new Set([assessment.primaryUsefulElement, assessment.supportiveElement, ...(assessment.supportiveElements ?? [])].filter(Boolean))]
 }
 
 export function assessDayMasterStrength(chart, options = {}) {
@@ -247,7 +287,7 @@ export function assessDayMasterStrength(chart, options = {}) {
   }
   const boundaryWarning = Boolean(options.boundaryWarning)
   const structureClarity = assessClarity({ score, monthBranch, possibleSpecial: patternType !== 'regular', boundaryWarning })
-  const useful = chooseUsefulElements(dayMaster, strengthLevel, patternType, climate)
+  const useful = evaluateElementRoles(dayMaster, strengthLevel, patternType, climate)
 
   chart.interactions
     .filter((interaction) => interaction.type.startsWith('COMBINATION'))
@@ -288,6 +328,6 @@ export function assessDayMasterStrength(chart, options = {}) {
       pressureScore: Math.round(pressureScore * 100) / 100,
       elementPresence
     },
-    ruleVersion: 'strength/0.1.0'
+    ruleVersion: 'strength/0.2.0'
   }
 }

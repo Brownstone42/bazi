@@ -1,3 +1,4 @@
+import { helpfulElements } from './strength-engine.js'
 import {
   BRANCH_HIDDEN_STEMS,
   BRANCH_TO_ELEMENT,
@@ -136,7 +137,7 @@ const tenGodProfiles = {
     relationship: 'แรงกดดันภายนอกอาจทำให้ใจร้อนหรือป้องกันตัวมากขึ้น ควรเว้นระยะก่อนตอบโต้เรื่องสำคัญ'
   },
   正官: {
-    label: 'บทบาทและมาตรฐาน',
+    label: 'ความรับผิดชอบและความคาดหวัง',
     expression: 'คุณมีแนวโน้มใส่ใจกับหน้าที่ กติกา และการรักษาความน่าเชื่อถือมากขึ้น',
     innerDrive: 'ความต้องการทำสิ่งต่าง ๆ ให้ถูกต้อง มีระเบียบ และตรวจสอบได้เป็นแรงขับสำคัญ',
     visible: 'หน้าที่ กติกา ตำแหน่ง และความน่าเชื่อถือในระบบถูกเน้นให้เห็นชัด',
@@ -149,7 +150,7 @@ const tenGodProfiles = {
     relationship: 'ความสัมพันธ์มีแนวโน้มจริงจังกับสถานะและความรับผิดชอบมากขึ้น ควรคุยความคาดหวังแทนการเดาใจอีกฝ่าย'
   },
   偏印: {
-    label: 'การปรับตัวด้วยความรู้เฉพาะ',
+    label: 'การปรับตัว',
     expression: 'คุณปรับตัวโดยใช้ความรู้เฉพาะทาง มุมมองของตนเอง และข้อมูลที่คนอื่นอาจมองข้าม',
     innerDrive: 'ความต้องการเข้าใจสิ่งต่าง ๆ ด้วยวิธีของตนเองและหาทางที่ไม่เป็นเส้นตรงเป็นแรงขับสำคัญ',
     visible: 'การเรียนรู้ทางลัด มุมมองเฉพาะตัว และการแก้ปัญหาจากข้อมูลที่คนอื่นมองข้ามเด่นขึ้น',
@@ -387,7 +388,7 @@ function getLifeStage(cycle) {
 }
 
 function buildSupportingFactors(cycle, assessment, profiles, interactions, hiddenStems) {
-  const helpful = [assessment.primaryUsefulElement, assessment.supportiveElement].filter(Boolean)
+  const helpful = helpfulElements(assessment)
   const opportunities = [...new Set(profiles.map((profile) => profile.opportunity))].join(' ')
   if (!helpful.length) {
     return `${opportunities} แต่ข้อมูลโครงสร้างพื้นดวงยังไม่เพียงพอสำหรับยืนยันธาตุที่ช่วยหนุน`

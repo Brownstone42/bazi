@@ -1,5 +1,5 @@
 import { calculateTenGod } from '@openfate/bazi-engine'
-import { assessDayMasterStrength } from './strength-engine.js'
+import { assessDayMasterStrength, helpfulElements } from './strength-engine.js'
 import {
   DAY_MASTER_MATRIX_VERSION,
   getDayMasterStrengthReading,
@@ -44,7 +44,7 @@ export const groupInsights = {
 
 const elementLabels = { wood: 'ไม้', fire: 'ไฟ', earth: 'ดิน', metal: 'ทอง', water: 'น้ำ' }
 
-const lifeRoleProfiles = {
+export const lifeRoleProfiles = {
   比肩: {
     label: 'ความเป็นตัวของตัวเอง',
     social: 'คุณมักคบคนแบบเท่าเทียมและไม่ชอบให้ใครก้าวก่ายการตัดสินใจ ความสัมพันธ์ที่ดีจึงต้องเคารพพื้นที่ของกันและกัน',
@@ -258,7 +258,7 @@ function interactionNote(chart, position, subject) {
 function rankCareerProfiles(chart, assessment) {
   const scores = Object.fromEntries(Object.keys(lifeRoleProfiles).map((god) => [god, 0]))
   const positionWeights = { year: 1, month: 4, day: 1, hour: 2 }
-  const helpful = new Set([assessment.primaryUsefulElement, assessment.supportiveElement].filter(Boolean))
+  const helpful = new Set(helpfulElements(assessment))
   const caution = new Set(assessment.cautionElements ?? [])
 
   Object.entries(chart.pillars).filter(([, pillar]) => Boolean(pillar)).forEach(([position, pillar]) => {
@@ -364,12 +364,11 @@ function buildLifeAreas(chart, assessment, dayProfile, scores) {
       shouldAvoid: 'รับหลายเป้าหมายพร้อมกัน ควบคุมทุกขั้นตอน หรือปล่อยให้โครงการระยะสั้นดึงเวลาออกจากสิ่งที่ต้องการสร้างจริง ๆ'
     },
     {
-      id: 'wellbeing', icon: 'pi-sun', title: 'สุขภาวะและการใช้พลัง',
+      id: 'wellbeing', icon: 'pi-sun', title: 'สุขภาพและการใช้พลัง',
       verdict: needsSupport ? 'ต้องจัดสภาพแวดล้อมและเวลาพักให้ดี' : 'มีแรงขับดี แต่ต้องมีจังหวะฟื้นตัว',
       text: `${wellbeingLead} ${wellbeingPatterns[dominantElement]}`,
       shouldDo: 'รักษาเวลานอน มื้ออาหาร การเคลื่อนไหวร่างกาย และช่วงพักให้สม่ำเสมอ โดยเฉพาะเมื่อภาระเพิ่มขึ้น',
       shouldAvoid: `${wellbeingSupportAvoidance}${wellbeingAvoidance[dominantElement]}`,
-      disclaimer: 'หมายเหตุ: ส่วนนี้อธิบายรูปแบบการใช้พลังเท่านั้น ไม่ใช่การตรวจหรือวินิจฉัยสุขภาพ หากมีอาการผิดปกติควรปรึกษาแพทย์ตามปกติ'
     }
   ]
 }

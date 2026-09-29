@@ -1,12 +1,12 @@
 export const accessPlans = {
   free: {
     id: 'free', label: 'Free', comparisonLimit: 1,
-    description: 'พื้นดวง ถนนสิบปีถึงปัจจุบัน ภาพรวมวันนี้ และเปรียบเทียบบุคคล 1 คน'
+    description: 'พื้นดวง ถนนชีวิต 10 ปีทุกช่วง ภาพรวมวันนี้ และเปรียบเทียบบุคคล 1 คน'
   },
   premium: {
-    id: 'premium', label: 'Premium', comparisonLimit: 5,
+    id: 'premium', label: 'Premium', comparisonLimit: 5, yearlyComparisonLimit: 10,
     monthlyPrice: 149, yearlyPrice: 999,
-    description: 'เปิดเครื่องมือวางแผนล่วงหน้าและเปรียบเทียบบุคคล 5 คนต่อเดือน'
+    description: 'เปิดเครื่องมือวางแผนล่วงหน้า รายเดือนเปรียบเทียบ 5 คนต่อเดือน รายปี 10 คนต่อเดือน'
   },
   comparison: {
     id: 'comparison', label: 'สิทธิ์เปรียบเทียบบุคคล', purchasedCredits: 5,
@@ -15,12 +15,12 @@ export const accessPlans = {
   }
 }
 
-export function comparisonLimitForPlan(planId) {
-  return planId === 'premium' ? accessPlans.premium.comparisonLimit : accessPlans.free.comparisonLimit
+export function comparisonLimitForPlan(planId, billingCycle = 'monthly') {
+  return planId === 'premium' ? billingCycle === 'yearly' ? accessPlans.premium.yearlyComparisonLimit : accessPlans.premium.comparisonLimit : accessPlans.free.comparisonLimit
 }
 
-export function comparisonBalance({ planId, includedUsed = 0, purchasedCredits = 0 }) {
-  const includedLimit = comparisonLimitForPlan(planId)
+export function comparisonBalance({ planId, billingCycle = 'monthly', includedUsed = 0, purchasedCredits = 0 }) {
+  const includedLimit = comparisonLimitForPlan(planId, billingCycle)
   const includedRemaining = Math.max(0, includedLimit - includedUsed)
   return {
     includedLimit,
@@ -30,8 +30,8 @@ export function comparisonBalance({ planId, includedUsed = 0, purchasedCredits =
   }
 }
 
-export function consumeComparison({ planId, includedUsed = 0, purchasedCredits = 0 }) {
-  const balance = comparisonBalance({ planId, includedUsed, purchasedCredits })
+export function consumeComparison({ planId, billingCycle = 'monthly', includedUsed = 0, purchasedCredits = 0 }) {
+  const balance = comparisonBalance({ planId, billingCycle, includedUsed, purchasedCredits })
   if (balance.includedRemaining > 0) {
     return { source: 'included', includedUsed: includedUsed + 1, purchasedCredits }
   }
@@ -41,20 +41,45 @@ export function consumeComparison({ planId, includedUsed = 0, purchasedCredits =
   return null
 }
 
-export function canAccessLuckCycle(cycle, currentCycle, planId) {
-  if (planId === 'premium') return true
-  if (!cycle || !currentCycle) return false
-  return cycle.index <= currentCycle.index
+export function canAccessLuckCycle(cycle) {
+  return Boolean(cycle)
 }
 
-export function canAccessCalendarDay(day, planId) {
-  return planId === 'premium' || Boolean(day?.isToday)
+export function calendarHorizon(plan, now = new Date()) {
+  const member = typeof plan === 'string' ? { planId: plan } : (plan ?? {})
+  if (member.planId !== 'premium') return 0
+  if (member.premiumExpiresAt && !(new Date(member.premiumExpiresAt) > now)) return 0
+  return member.billingCycle === 'yearly' ? 90 : 30
+}
+
+function todayNumber(now) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now)
+  const value = type => Number(parts.find(part => part.type === type).value)
+  return Date.UTC(value('year'), value('month') - 1, value('day')) / 86400000
+}
+
+export function canAccessCalendarDay(day, plan, now = new Date()) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day?.key ?? '')) return false
+  const date = new Date(`${day.key}T00:00:00Z`)
+  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== day.key) return false
+  const offset = date.getTime() / 86400000 - todayNumber(now)
+  return offset >= 0 && offset <= calendarHorizon(plan, now)
+}
+
+export function calendarDayAccess(day, plan, now = new Date()) {
+  if (canAccessCalendarDay(day, plan, now)) return 'available'
+  return canAccessCalendarDay(day, { planId: 'premium', billingCycle: 'yearly' }, now) ? 'premium' : 'unavailable'
+}
+
+export function calendarPlanForSession(planId, { development = false, hostname = '', status = '' } = {}) {
+  const localPreview = development && ['localhost', '127.0.0.1', '[::1]', '::1'].includes(hostname) && status === 'local'
+  return localPreview ? { planId: 'premium', billingCycle: 'yearly', localPreview: true } : planId
 }
 
 export function calendarMonthAccess(year, month, planId, now = new Date()) {
-  const currentIndex = now.getFullYear() * 12 + now.getMonth()
-  const requestedIndex = year * 12 + month - 1
-  if (requestedIndex === currentIndex) return 'available'
-  if (planId === 'premium' && requestedIndex === currentIndex + 1) return 'available'
-  return requestedIndex === currentIndex + 1 ? 'premium' : 'unavailable'
+  const start = Date.UTC(year, month - 1, 1) / 86400000
+  const end = Date.UTC(year, month, 0) / 86400000
+  const today = todayNumber(now)
+  if (end < today || start > today + 90) return 'unavailable'
+  return start <= today + calendarHorizon(planId, now) ? 'available' : 'premium'
 }

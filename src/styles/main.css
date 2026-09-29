@@ -212,6 +212,20 @@ h1 { margin-bottom: 5px; color: #3b161b; font-family: Georgia, "Noto Serif Thai"
 .saved-comparisons-list { display: grid; gap: 8px; }
 .saved-comparisons-list button { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; width: 100%; padding: 11px; color: #563a34; text-align: left; background: #fff; border: 1px solid #eee3da; border-radius: 12px; cursor: pointer; }
 .saved-comparisons-list button.pending { border-style: dashed; }
+.saved-comparisons-list button.saved-person-option { grid-template-columns: auto minmax(0, 1fr) auto auto; transition: background .18s, border-color .18s, box-shadow .18s; }
+.saved-comparisons-list button.saved-person-option[aria-pressed="true"] { background: #edf3ed; border-color: #52765f; box-shadow: inset 0 0 0 1px #52765f; }
+.saved-comparisons-list button.saved-person-option[aria-pressed="true"] > i { color: #386449; font-size: 1rem; }
+.saved-comparisons-list button.saved-person-option:focus-visible { outline: 3px solid #b49a60; outline-offset: 3px; }
+.saved-comparisons-list .saved-person-score { text-align: center; padding: 7px 10px; border-radius: 10px; background: #f1eee6; }
+.saved-comparisons-list .saved-person-score strong { font-size: 1.25rem; color: #345340; }
+.saved-comparisons-list .saved-person-score strong small { display: inline; margin-left: 2px; font-size: .65rem; }
+.comparison-deselect { flex-shrink: 0; min-height: 44px; border-radius: 10px !important; font-size: .8rem !important; }
+.comparison-form-actions { display: flex; gap: 10px; margin-top: 28px; align-items: stretch; }
+.comparison-form-actions .calculate-button { flex: 2; width: auto; min-width: 0; margin: 0; border-radius: 13px !important; }
+.comparison-save-button { flex: 1; min-width: 0; min-height: 50px; margin: 0; padding: .9rem .65rem !important; background: #345340 !important; border-color: #345340 !important; border-radius: 13px !important; box-shadow: 0 4px 12px #34534020; font-weight: 700 !important; }
+.comparison-save-button:hover { background: #284432 !important; border-color: #284432 !important; }
+.comparison-save-success { padding: 12px 16px; border-radius: 12px; background: #edf3ed; color: #345340; font-size: .85rem; }
+@media (max-width: 480px) { .saved-comparisons-heading { flex-wrap: wrap; } .saved-comparisons-list button.saved-person-option { gap: 7px; padding: 10px; } }
 .saved-comparisons-list button > span:nth-child(2) { min-width: 0; }
 .saved-comparisons-list button strong, .saved-comparisons-list button small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .saved-comparisons-list button strong { font-size: .75rem; }
@@ -302,6 +316,14 @@ h1 { margin-bottom: 5px; color: #3b161b; font-family: Georgia, "Noto Serif Thai"
 .calendar-day.today::after { content: "วันนี้"; position: absolute; top: 2px; right: 2px; color: #8a2736; font-size: .42rem; font-weight: 900; }
 .calendar-day.selected { z-index: 1; border-color: #7f2634; box-shadow: 0 0 0 2px rgba(127,38,52,.13); }
 .calendar-day.locked { color: #9c8e84; background: #f1ece7; border-style: dashed; }
+.calendar-day.unavailable { color: #a49f99; background: #f5f4f1; border-color: #e7e4df; cursor: default; box-shadow: none; }
+.calendar-day > .calendar-unavailable-mark { margin-top: 6px; font-size: .8rem; font-weight: 400; }
+.calendar-day .calendar-personal-score { margin-top: 6px; font-size: .9rem; color: #4a614a; }
+.calendar-day .calendar-personal-score em { font-size: .5rem; font-style: normal; font-weight: 400; margin-left: 1px; }
+.calendar-day.caution .calendar-personal-score { color: #994b45; }
+.calendar-day .calendar-personal-stars { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; color: #ae853d; }
+.calendar-personal-stars .pi { font-size: .6rem; }
+@media (max-width: 520px) { .calendar-day { min-height: 70px; } .calendar-day .calendar-personal-score em { display: none; } }
 .calendar-legend { display: flex; flex-wrap: wrap; gap: 9px 13px; padding: 12px 5px 2px; color: #7f726a; font-size: .6rem; }
 .calendar-legend span { display: flex; align-items: center; gap: 5px; }
 .calendar-legend i { width: 7px; height: 7px; background: #bcb0a6; border-radius: 50%; }
@@ -495,7 +517,7 @@ h1 { margin-bottom: 5px; color: #3b161b; font-family: Georgia, "Noto Serif Thai"
   .brand-mark { flex-basis: 74px; width: 74px; height: 74px; border-radius: 18px; font-size: 27px; }
   .workspace { grid-template-columns: minmax(0, .88fr) minmax(0, 1.12fr); gap: 24px; }
   .form-card { padding: 28px; }
-  .result-card { position: sticky; top: 24px; padding: 30px; }
+  .result-card { position: static; padding: 30px; }
   .form-card, .result-card { border-radius: 24px; }
   .pillars-grid { gap: 10px; margin: 28px 0 20px; }
   .pillar-label { padding: 10px 5px; font-size: .8rem; }
@@ -507,3 +529,29 @@ h1 { margin-bottom: 5px; color: #3b161b; font-family: Georgia, "Noto Serif Thai"
   .insight-card > p { min-height: 88px; }
   .blind-test-card { padding: 28px; border-radius: 24px; }
 }
+.comparison-topics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: .6rem;
+  margin-bottom: .75rem;
+}
+.comparison-topics button {
+  font: inherit;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: .65rem;
+  padding: 1rem;
+  border: 1px solid #dcd8ce;
+  border-radius: 14px;
+  color: #38483e;
+  background: #faf8f3;
+  cursor: pointer;
+  text-align: left;
+}
+.comparison-topics button[aria-pressed="true"] { background: #334c40; color: white; border-color: #334c40; }
+.comparison-topics button:focus-visible { outline: 3px solid #b49a60; outline-offset: 3px; }
+.comparison-topics strong { font-size: 1.5rem; }
+.comparison-topics small { font-size: .75rem; font-weight: 400; }
+.comparison-topic-hint { font-size: .85rem; color: #697067; line-height: 1.7; margin-bottom: 1.5rem; }

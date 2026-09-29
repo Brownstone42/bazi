@@ -6,14 +6,15 @@ import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Textarea from 'primevue/textarea'
 import MobileDateTimePicker from './components/MobileDateTimePicker.vue'
-import {
-  branchThaiLabel,
-  calculateChart,
-  calculateChartWithOptionalTime,
-  elementThaiLabel,
-  pillarLabel,
-  stemThai
-} from './services/bazi'
+import IdentityReading from './components/IdentityReading.vue'
+import CompatibilityScore from './components/CompatibilityScore.vue'
+import PersonalDayReading from './components/PersonalDayReading.vue'
+import MembershipSummary from './components/MembershipSummary.vue'
+import BillingPanel from './components/BillingPanel.vue'
+import { BIRTH_EDIT_INTERVAL, birthProfileChanged, birthEditBlocked, formatBirthEditDate } from './services/profile-policy'
+import { loadComparisonPeople, saveComparisonPerson } from './services/comparison-people'
+import './styles/identity.css'
+import { calculateChart, calculateChartWithOptionalTime } from './services/bazi'
 import { interpretNatalChart } from './services/interpretation'
 import { assessDayMasterStrength } from './services/strength-engine'
 import { createBlindTest, evaluateBlindTest } from './services/blind-test'
@@ -23,13 +24,16 @@ import { pickerDateToTimeString, timeStringToPickerDate } from './services/time-
 import { buildPersonalMonth, calendarFocusOptions, shiftCalendarMonth } from './services/personal-calendar'
 import {
   accessPlans,
+  calendarHorizon,
+  calendarDayAccess,
   calendarMonthAccess,
+  calendarPlanForSession,
   canAccessCalendarDay,
-  canAccessLuckCycle,
   comparisonBalance,
   consumeComparison
 } from './services/access-control'
 import { initializeLineSession } from './services/liff-auth'
+import { loadLocalBirthProfile, saveLocalBirthProfile, mockUser } from './services/local-account'
 import {
   birthProfileToForm,
   reserveComparison,
@@ -38,12 +42,12 @@ import {
 } from './services/account-api'
 
 const isBlindTestMode = new URLSearchParams(window.location.search).get('mode') === 'blind-test'
-const previewPlan = new URLSearchParams(window.location.search).get('preview')
+const previewPlan = import.meta.env.DEV ? new URLSearchParams(window.location.search).get('preview') : null
 const liffId = import.meta.env.VITE_LIFF_ID
 
 const form = reactive({
-  birthDate: '26/08/1989',
-  birthTime: '11:30',
+  birthDate: '',
+  birthTime: '',
   gender: 'male',
   timezoneId: 'Asia/Bangkok'
 })
@@ -54,8 +58,8 @@ const comparisonForm = reactive({
   birthTime: '',
   gender: 'female',
   timezoneId: 'Asia/Bangkok',
-  relationship: 'partner',
-  focus: 'love'
+  relationship: 'unspecified',
+  focus: 'overview'
 })
 const birthTimePicker = computed({
   get: () => timeStringToPickerDate(form.birthTime),
@@ -85,26 +89,12 @@ const relationshipOptions = [
   { label: 'ลูกค้าหรือคู่ค้า', value: 'client' }
 ]
 const comparisonFocusOptions = [
+  { label: 'ภาพรวม', value: 'overview' },
   { label: 'ความรักและชีวิตคู่', value: 'love' },
   { label: 'ครอบครัวและการอยู่ร่วมกัน', value: 'family' },
   { label: 'การทำงานและธุรกิจ', value: 'work' },
-  { label: 'เพื่อนและการคบหากัน', value: 'friendship' },
-  { label: 'ภาพรวมความสัมพันธ์', value: 'overview' }
+  { label: 'เพื่อนและการคบหา', value: 'friendship' }
 ]
-const focusByRelationship = {
-  interest: ['love', 'friendship', 'overview'],
-  partner: ['love', 'family', 'work', 'overview'],
-  spouse: ['love', 'family', 'work', 'overview'],
-  parent: ['family', 'overview'],
-  child: ['family', 'overview'],
-  sibling: ['family', 'work', 'overview'],
-  friend: ['friendship', 'work', 'overview'],
-  boss: ['work', 'overview'],
-  colleague: ['work', 'friendship', 'overview'],
-  subordinate: ['work', 'overview'],
-  business_partner: ['work', 'overview'],
-  client: ['work', 'overview']
-}
 const featuredTimezones = [
   { label: 'ประเทศไทย · กรุงเทพฯ (UTC+7)', value: 'Asia/Bangkok' },
   { label: 'สิงคโปร์ (UTC+8)', value: 'Asia/Singapore' },
@@ -129,9 +119,13 @@ const timezoneOptions = (() => {
   ]
 })()
 const chart = ref(null)
+const editingBirthProfile = ref(window.location.hash === '#account')
+const profileSaving = ref(false)
+const profileVersion = ref(null)
+const nextBirthEditAt = ref(null)
+const activeComparisonReport = ref(null)
 const calculatedInput = ref(null)
 const error = ref('')
-const feedback = reactive({})
 const blindTest = ref(null)
 const blindSelection = ref('')
 const blindFocus = ref('')
@@ -143,11 +137,49 @@ const selectedLuckCycleIndex = ref(null)
 const comparisonResult = ref(null)
 const comparisonError = ref('')
 const comparisonSubmitting = ref(false)
+const comparisonTopics = computed(() => {
+  if (!comparisonResult.value || !chart.value || activeComparisonReport.value?.isStale) return []
+  const { chart: otherChart, hasBirthTime } = calculateChartWithOptionalTime(comparisonForm)
+  return comparisonFocusOptions.map(topic => ({
+    ...topic,
+    result: interpretCompatibility(chart.value, otherChart, {
+      relationship: 'unspecified', focus: topic.value, hasBirthTime
+    })
+  }))
+})
+
+const comparisonOverviewScore = computed(() => activeComparisonReport.value?.isStale
+  ? comparisonResult.value?.score ?? null
+  : comparisonResult.value?.score
+  ? comparisonTopics.value.find(topic => topic.value === 'overview')?.result.score
+  : null)
+
+function selectComparisonTopic(topic) {
+  comparisonForm.focus = topic.value
+  comparisonResult.value = topic.result
+}
 const savedComparisons = ref([])
+const comparisonPeople = ref([])
+const comparisonPeopleWithScores = computed(() => comparisonPeople.value.map(person => {
+  try {
+    return { ...person, overallScore: buildPersonOverview(person)?.score.value ?? null }
+  } catch {
+    return { ...person, overallScore: null }
+  }
+}))
+const selectedComparisonPerson = ref(null)
+const comparisonSaveNotice = ref('')
 const activeView = ref(viewFromHash())
 const luckTrack = ref(null)
 const accessPlan = ref(previewPlan === 'premium' ? 'premium' : 'free')
+const billingCycle = ref('monthly')
+const premiumExpiresAt = ref(null)
+const calendarNow = ref(new Date())
+let calendarClock
+function refreshCalendarClock() { calendarNow.value = new Date() }
 const pricingNotice = ref('')
+const selectedBillingCycle = ref('monthly')
+const selectedBillingProduct = ref(null)
 const comparisonIncludedUsed = ref(0)
 const purchasedComparisonCredits = ref(previewPlan === 'comparison' ? 5 : 0)
 const calendarFocus = ref('all')
@@ -156,6 +188,8 @@ const calendarCursor = reactive({ year: new Date().getFullYear(), month: new Dat
 const calendarWeekdays = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา']
 const lineSession = reactive({ status: 'initializing', inClient: false, profile: null })
 const accountSync = reactive({ status: 'idle', error: '' })
+const accountLoaded = ref(false)
+const accountReady = computed(() => accountLoaded.value)
 
 const blindFocusOptions = [
   { label: 'ภาพรวมบุคลิก', value: 'identity' },
@@ -165,12 +199,6 @@ const blindFocusOptions = [
   { label: 'ไม่มีส่วนใดเป็นพิเศษ', value: 'none' }
 ]
 
-const pillars = computed(() => chart.value ? [
-  { key: 'hour', title: 'ยาม', subtitle: 'เสายาม', value: chart.value.pillars.hour },
-  { key: 'day', title: 'วัน', subtitle: 'เสาวัน', value: chart.value.pillars.day },
-  { key: 'month', title: 'เดือน', subtitle: 'เสาเดือน', value: chart.value.pillars.month },
-  { key: 'year', title: 'ปี', subtitle: 'เสาปี', value: chart.value.pillars.year }
-] : [])
 const strength = computed(() => chart.value ? assessDayMasterStrength(chart.value) : null)
 const reading = computed(() => chart.value && strength.value ? interpretNatalChart(chart.value, strength.value) : null)
 const luckTimeline = computed(() => chart.value && calculatedInput.value
@@ -190,20 +218,21 @@ const selectedLuckReading = computed(() => chart.value && strength.value && sele
 const selectedLuckPosition = computed(() => luckTimeline.value?.cycles.findIndex((cycle) => cycle.index === selectedLuckCycle.value?.index) ?? -1)
 const canMoveLuckPrevious = computed(() => selectedLuckPosition.value > 0)
 const canMoveLuckNext = computed(() => selectedLuckPosition.value >= 0 && selectedLuckPosition.value < (luckTimeline.value?.cycles.length ?? 0) - 1)
-const selectedLuckLocked = computed(() => !canAccessLuckCycle(selectedLuckCycle.value, currentLuckCycle.value, accessPlan.value))
-const isPremium = computed(() => accessPlan.value === 'premium')
+const calendarPlan = computed(() => calendarPlanForSession({ planId: accessPlan.value, billingCycle: billingCycle.value, premiumExpiresAt: premiumExpiresAt.value }, {
+  development: import.meta.env.DEV, hostname: window.location.hostname, status: lineSession.status
+}))
+const calendarDaysAhead = computed(() => calendarHorizon(calendarPlan.value, calendarNow.value))
+const isPremium = computed(() => calendarDaysAhead.value > 0)
+function calendarDayAllowed(day) { return canAccessCalendarDay(day, calendarPlan.value, calendarNow.value) }
+function calendarDayState(day) { return calendarDayAccess(day, calendarPlan.value, calendarNow.value) }
 const comparisonQuota = computed(() => comparisonBalance({
   planId: accessPlan.value,
+  billingCycle: billingCycle.value,
   includedUsed: comparisonIncludedUsed.value,
   purchasedCredits: purchasedComparisonCredits.value
 }))
-const calendarPreviousAccess = computed(() => calendarMonthAccess(calendarCursor.year, calendarCursor.month - 1, accessPlan.value))
-const calendarNextAccess = computed(() => calendarMonthAccess(calendarCursor.year, calendarCursor.month + 1, accessPlan.value))
-const selectedRelationshipLabel = computed(() => relationshipOptions.find((item) => item.value === comparisonForm.relationship)?.label ?? 'อีกฝ่าย')
-const availableComparisonFocusOptions = computed(() => {
-  const allowed = focusByRelationship[comparisonForm.relationship] ?? ['overview']
-  return comparisonFocusOptions.filter((item) => allowed.includes(item.value))
-})
+const calendarPreviousAccess = computed(() => calendarMonthAccess(calendarCursor.year, calendarCursor.month - 1, calendarPlan.value, calendarNow.value))
+const calendarNextAccess = computed(() => calendarMonthAccess(calendarCursor.year, calendarCursor.month + 1, calendarPlan.value, calendarNow.value))
 const personalMonth = computed(() => chart.value && strength.value && calculatedInput.value
   ? buildPersonalMonth({
       chart: chart.value,
@@ -212,6 +241,7 @@ const personalMonth = computed(() => chart.value && strength.value && calculated
       year: calendarCursor.year,
       month: calendarCursor.month,
       focus: calendarFocus.value,
+      now: calendarNow.value,
       currentLuckCycle: luckTimeline.value?.cycles.find((cycle) => cycle.isCurrent) ?? null
     })
   : null)
@@ -241,12 +271,13 @@ function calculateAndDisplay(input) {
   chart.value = calculateChart(input)
   calculatedInput.value = input
   selectedLuckCycleIndex.value = null
-  Object.keys(feedback).forEach((key) => delete feedback[key])
   if (isBlindTestMode) startBlindTest()
 }
 
 function applyEntitlement(entitlement) {
   if (!entitlement) return
+  if (entitlement.billingCycle !== undefined) billingCycle.value = entitlement.billingCycle
+  if (entitlement.premiumExpiresAt !== undefined) premiumExpiresAt.value = entitlement.premiumExpiresAt
   if (!previewPlan) accessPlan.value = entitlement.planId
   comparisonIncludedUsed.value = entitlement.includedComparisonUsed ?? 0
   if (previewPlan !== 'comparison') purchasedComparisonCredits.value = entitlement.purchasedComparisonCredits ?? 0
@@ -257,6 +288,56 @@ function upsertSavedComparison(report) {
   savedComparisons.value = [report, ...savedComparisons.value.filter((item) => item.id !== report.id)]
 }
 
+function buildPersonOverview(person) {
+  if (!chart.value) return null
+  const { chart: otherChart, hasBirthTime } = calculateChartWithOptionalTime(person)
+  return interpretCompatibility(chart.value, otherChart, { relationship: 'unspecified', focus: 'overview', hasBirthTime })
+}
+
+async function selectComparisonPerson(person) {
+  activeComparisonReport.value = null
+  selectedComparisonPerson.value = person.id
+  Object.assign(comparisonForm, { ...person, relationship: 'unspecified', focus: 'overview' })
+  comparisonResult.value = null
+  comparisonError.value = ''
+  comparisonSaveNotice.value = ''
+  await nextTick()
+  if (selectedComparisonPerson.value !== person.id) return
+  try {
+    comparisonResult.value = buildPersonOverview(person)
+  } catch (cause) {
+    comparisonError.value = cause instanceof Error ? cause.message : 'ไม่สามารถอ่านข้อมูลของคนนี้ได้'
+  }
+}
+
+function saveComparisonPersonFromForm() {
+  comparisonError.value = ''
+  comparisonSaveNotice.value = ''
+  try {
+    if (!comparisonForm.name.trim()) throw new Error('กรุณากรอกชื่อก่อนบันทึก')
+    calculateChartWithOptionalTime(comparisonForm)
+    const saved = saveComparisonPerson(window.localStorage, comparisonForm, selectedComparisonPerson.value)
+    comparisonPeople.value = saved.people
+    selectedComparisonPerson.value = saved.person.id
+    comparisonSaveNotice.value = 'บันทึกข้อมูลคนนี้ในเบราว์เซอร์แล้ว'
+    comparisonForm.focus = 'overview'
+    comparisonResult.value = buildPersonOverview(saved.person)
+    return true
+  } catch (cause) {
+    comparisonError.value = cause instanceof Error ? cause.message : 'บันทึกไม่ได้ กรุณาลองใหม่'
+    return false
+  }
+}
+
+function newComparisonPerson() {
+  activeComparisonReport.value = null
+  selectedComparisonPerson.value = null
+  Object.assign(comparisonForm, { name: '', birthDate: '', birthTime: '', gender: 'female', timezoneId: 'Asia/Bangkok', relationship: 'unspecified', focus: 'overview' })
+  comparisonResult.value = null
+  comparisonSaveNotice.value = ''
+  comparisonError.value = ''
+}
+
 function comparisonContextLabel(report) {
   const relationship = relationshipOptions.find((item) => item.value === report.relationship)?.label ?? 'อีกฝ่าย'
   const focus = comparisonFocusOptions.find((item) => item.value === report.focus)?.label ?? 'ภาพรวมความสัมพันธ์'
@@ -264,6 +345,8 @@ function comparisonContextLabel(report) {
 }
 
 async function openSavedComparison(report) {
+  selectedComparisonPerson.value = null
+  comparisonSaveNotice.value = ''
   Object.assign(comparisonForm, {
     name: report.name ?? '',
     birthDate: report.birthDate,
@@ -274,34 +357,67 @@ async function openSavedComparison(report) {
     focus: report.focus
   })
   await nextTick()
+  activeComparisonReport.value = report
   comparisonResult.value = report.result
   comparisonError.value = report.result ? '' : 'รายการนี้ยังสร้างคำอ่านไม่เสร็จ กรุณากดดูคำแนะนำอีกครั้ง'
 }
 
 async function saveBirthProfile(input) {
+  if (lineSession.status === 'local') {
+    saveLocalBirthProfile(window.localStorage, input)
+    return
+  }
   if (!lineSession.idToken) return
   accountSync.status = 'saving'
   accountSync.error = ''
   try {
     const account = await syncLineAccount({ idToken: lineSession.idToken, birthProfile: input })
     applyEntitlement(account.entitlement)
+    profileVersion.value = account.birthProfile?.profile_version ?? null
+    nextBirthEditAt.value = account.nextBirthEditAt ?? null
+    savedComparisons.value = account.comparisonReports ?? []
     accountSync.status = 'synced'
   } catch (cause) {
+    if (cause.nextEditAt) nextBirthEditAt.value = cause.nextEditAt
     accountSync.status = 'error'
     accountSync.error = cause instanceof Error ? cause.message : 'ไม่สามารถบันทึกข้อมูลได้'
+    throw cause
   }
 }
 
-function submit() {
+async function submit() {
+  if (profileSaving.value) return
+  profileSaving.value = true
   error.value = ''
   try {
     const input = { ...form }
-    calculateAndDisplay(input)
-    saveBirthProfile(input)
+    const nextChart = calculateChart(input)
+    const changed = birthProfileChanged(calculatedInput.value, input)
+    if (changed && lineSession.status !== 'local' && !isBlindTestMode) {
+      if (birthEditBlocked(nextBirthEditAt.value)) {
+        throw new Error(`แก้ข้อมูลเกิดได้อีกครั้งวันที่ ${formatBirthEditDate(nextBirthEditAt.value)}`)
+      }
+      const nextDate = formatBirthEditDate(Date.now() + BIRTH_EDIT_INTERVAL)
+      if (!window.confirm(`ยืนยันแก้ข้อมูลเกิดหรือไม่?\nรายงานเปรียบเทียบเดิมจะถูกทำเครื่องหมายว่าเป็นข้อมูลเก่า ไม่ลบและไม่คืนโควต้า\nปฏิทินจะคำนวณใหม่ สิทธิ์ Premium และโควต้าไม่เปลี่ยน\nแก้ข้อมูลเกิดได้อีกครั้งประมาณ ${nextDate}`)) return
+    }
+    if (!isBlindTestMode) await saveBirthProfile(input)
+    chart.value = nextChart
+    calculatedInput.value = input
+    selectedLuckCycleIndex.value = null
+    comparisonResult.value = null
+    activeComparisonReport.value = null
+    selectedCalendarDayKey.value = null
+    if (changed) {
+      calendarCursor.year = new Date().getFullYear()
+      calendarCursor.month = new Date().getMonth() + 1
+    }
+    editingBirthProfile.value = false
+    if (isBlindTestMode) startBlindTest()
+    else setActiveView('profile')
   } catch (cause) {
-    chart.value = null
-    calculatedInput.value = null
     error.value = cause instanceof Error ? cause.message : 'ไม่สามารถคำนวณผังได้'
+  } finally {
+    profileSaving.value = false
   }
 }
 
@@ -326,6 +442,15 @@ function moveLuckCycle(direction) {
 }
 
 function setActiveView(view) {
+  if (!chart.value && !isBlindTestMode) view = 'account'
+  editingBirthProfile.value = view === 'account'
+  if (editingBirthProfile.value && calculatedInput.value) Object.assign(form, calculatedInput.value)
+  if (view === 'account') {
+    activeView.value = 'profile'
+    window.location.hash = 'account'
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    return
+  }
   activeView.value = view
   const hashes = { luck: 'luck', calendar: 'calendar', compare: 'compare', pricing: 'pricing' }
   window.location.hash = hashes[view] ?? 'profile'
@@ -337,16 +462,29 @@ function openPricing(message = '') {
   setActiveView('pricing')
 }
 
-function choosePlan(planId) {
+function choosePlan(planId, cycle = selectedBillingCycle.value) {
   const plan = accessPlans[planId]
-  pricingNotice.value = `เลือก ${plan.label} แล้ว — ระบบรับชำระเงินจริงจะเชื่อมในขั้นถัดไป`
+  selectedBillingCycle.value = cycle
+  selectedBillingProduct.value = planId === 'comparison' ? 'comparison' : cycle
+  const period = planId === 'premium' ? cycle === 'yearly' ? ' รายปี · 999 บาท · ล่วงหน้า 90 วัน' : ' รายเดือน · 149 บาท · ล่วงหน้า 30 วัน' : ''
+  pricingNotice.value = `เลือก ${plan.label}${period} แล้ว — ดูส่วนชำระเงินทดสอบด้านล่าง`
+}
+
+async function refreshBillingAccount() {
+  if (!lineSession.idToken) return
+  try {
+    const account = await syncLineAccount({ idToken: lineSession.idToken })
+    applyEntitlement(account.entitlement)
+  } catch {
+    pricingNotice.value = 'ยังอัปเดตสิทธิ์ไม่ได้ กรุณากดตรวจสอบอีกครั้ง'
+  }
 }
 
 function moveCalendarMonth(amount) {
   const shifted = shiftCalendarMonth(calendarCursor.year, calendarCursor.month, amount)
-  const access = calendarMonthAccess(shifted.year, shifted.month, accessPlan.value)
+  const access = calendarMonthAccess(shifted.year, shifted.month, calendarPlan.value, calendarNow.value)
   if (access === 'premium') {
-    openPricing('การดูปฏิทินเดือนหน้าเป็นสิทธิ์ของสมาชิก Premium')
+    openPricing('Premium รายเดือนดูล่วงหน้า 30 วัน รายปีดูล่วงหน้า 90 วัน')
     return
   }
   if (access === 'unavailable') return
@@ -356,15 +494,18 @@ function moveCalendarMonth(amount) {
 }
 
 function selectCalendarDay(day) {
-  if (!canAccessCalendarDay(day, accessPlan.value)) {
-    openPricing('ผู้ใช้ฟรีดูรายละเอียดได้เฉพาะวันนี้ สมัคร Premium เพื่อดูรายละเอียดได้ทั้งเดือนนี้และเดือนหน้า')
+  refreshCalendarClock()
+  if (calendarDayState(day) === 'unavailable') return
+  if (!calendarDayAllowed(day)) {
+    openPricing('ฟรีดูวันนี้ · Premium รายเดือนดูล่วงหน้า 30 วัน รายปีดูล่วงหน้า 90 วัน โดยไม่รวมวันย้อนหลัง')
     return
   }
   selectedCalendarDayKey.value = day.key
 }
 
 function syncViewFromHash() {
-  activeView.value = viewFromHash()
+  activeView.value = chart.value || isBlindTestMode ? viewFromHash() : 'profile'
+  editingBirthProfile.value = window.location.hash === '#account' || !chart.value
 }
 
 function handleViewportResize() {
@@ -380,6 +521,18 @@ async function connectLineAccount() {
   try {
     const session = await initializeLineSession({ liffId })
     Object.assign(lineSession, session)
+    if (session.status === 'local') {
+      lineSession.profile = { ...mockUser }
+      comparisonPeople.value = loadComparisonPeople(window.localStorage)
+      if (comparisonPeople.value.length) selectComparisonPerson(comparisonPeople.value[0])
+      const stored = loadLocalBirthProfile(window.localStorage)
+      if (stored) {
+        Object.assign(form, stored)
+        calculateAndDisplay({ ...form })
+      } else setActiveView('account')
+      accountLoaded.value = true
+      return
+    }
     if (session.status === 'authenticated' && session.idToken) {
       accountSync.status = 'syncing'
       accountSync.error = ''
@@ -387,12 +540,15 @@ async function connectLineAccount() {
         const account = await syncLineAccount({ idToken: session.idToken })
         applyEntitlement(account.entitlement)
         savedComparisons.value = account.comparisonReports ?? []
+        profileVersion.value = account.birthProfile?.profile_version ?? null
+        nextBirthEditAt.value = account.nextBirthEditAt ?? null
         const storedBirthProfile = birthProfileToForm(account.birthProfile)
         if (storedBirthProfile) {
           Object.assign(form, storedBirthProfile)
           calculateAndDisplay({ ...form })
-        }
+        } else setActiveView('account')
         accountSync.status = 'synced'
+        accountLoaded.value = true
       } catch (cause) {
         accountSync.status = 'error'
         accountSync.error = cause instanceof Error ? cause.message : 'ไม่สามารถโหลดบัญชีผู้ใช้ได้'
@@ -405,12 +561,15 @@ async function connectLineAccount() {
 }
 
 async function submitComparison() {
+  activeComparisonReport.value = null
   comparisonError.value = ''
   comparisonResult.value = null
   comparisonSubmitting.value = true
 
   try {
     if (!chart.value) throw new Error('กรุณาคำนวณพื้นดวงของคุณก่อน')
+    comparisonForm.relationship = 'unspecified'
+    comparisonForm.focus = 'overview'
     const { chart: otherChart, hasBirthTime } = calculateChartWithOptionalTime(comparisonForm)
     const generatedResult = interpretCompatibility(chart.value, otherChart, {
       relationship: comparisonForm.relationship,
@@ -421,6 +580,7 @@ async function submitComparison() {
     if (lineSession.idToken) {
       const reservation = await reserveComparison({
         idToken: lineSession.idToken,
+        profileVersion: profileVersion.value,
         comparisonProfile: { ...comparisonForm }
       })
       applyEntitlement(reservation.entitlement)
@@ -443,8 +603,15 @@ async function submitComparison() {
       return
     }
 
+    if (lineSession.status === 'local') {
+      if (!saveComparisonPersonFromForm()) return
+      comparisonResult.value = generatedResult
+      return
+    }
+
     const quotaUse = consumeComparison({
       planId: accessPlan.value,
+      billingCycle: billingCycle.value,
       includedUsed: comparisonIncludedUsed.value,
       purchasedCredits: purchasedComparisonCredits.value
     })
@@ -512,11 +679,11 @@ watch(activeView, (view) => {
   if (view === 'luck') nextTick(() => centerSelectedLuckCycle('auto'))
 })
 
-watch(() => comparisonForm.relationship, () => {
-  if (!availableComparisonFocusOptions.value.some((item) => item.value === comparisonForm.focus)) {
-    comparisonForm.focus = availableComparisonFocusOptions.value[0]?.value ?? 'overview'
-  }
+
+watch(() => [comparisonForm.name, comparisonForm.birthDate, comparisonForm.birthTime, comparisonForm.gender, comparisonForm.timezoneId], () => {
+  activeComparisonReport.value = null
   comparisonResult.value = null
+  comparisonSaveNotice.value = ''
 })
 
 watch(calendarFocus, () => {
@@ -524,17 +691,24 @@ watch(calendarFocus, () => {
 })
 
 onMounted(() => {
+  calendarClock = window.setInterval(refreshCalendarClock, 30000)
+  window.addEventListener('focus', refreshCalendarClock)
   window.addEventListener('hashchange', syncViewFromHash)
   window.addEventListener('resize', handleViewportResize)
   if (activeView.value === 'luck') nextTick(() => centerSelectedLuckCycle('auto'))
   connectLineAccount()
 })
 onBeforeUnmount(() => {
+  window.clearInterval(calendarClock)
+  window.removeEventListener('focus', refreshCalendarClock)
   window.removeEventListener('hashchange', syncViewFromHash)
   window.removeEventListener('resize', handleViewportResize)
 })
 
-submit()
+if (isBlindTestMode) {
+  Object.assign(form, { birthDate: '26/08/1989', birthTime: '11:30' })
+  submit()
+}
 </script>
 
 <template>
@@ -542,10 +716,10 @@ submit()
     <header class="hero">
       <div class="brand-mark">八字</div>
       <div class="hero-heading">
-        <p class="eyebrow">BAZI CALENDAR LAB</p>
-        <h1>ผังโป๊ยหยี่สี่เถี่ยว</h1>
+        <p class="eyebrow">BAZI</p>
+        <h1>รู้จักตัวเอง ผ่านปาจื้อ</h1>
         <p class="hero-copy">
-          {{ isBlindTestMode ? 'เครื่องมือภายในสำหรับทดสอบคุณภาพคำอ่านโดยไม่เฉลยดวงล่วงหน้า' : 'ต้นแบบสำหรับตรวจสอบ 8 เม็ดจากวัน เวลา และสถานที่เกิด' }}
+          {{ isBlindTestMode ? 'เครื่องมือภายในสำหรับทดสอบคุณภาพคำอ่านโดยไม่เฉลยดวงล่วงหน้า' : 'ค้นพบจุดเด่น เข้าใจวิธีของตัวเอง และนำไปใช้กับชีวิต' }}
         </p>
       </div>
       <div v-if="!isBlindTestMode" class="line-account" :class="`line-account-${lineSession.status}`">
@@ -557,20 +731,25 @@ submit()
         <i v-else :class="lineSession.status === 'initializing' ? 'pi pi-spin pi-spinner' : 'pi pi-user'" />
         <div>
           <strong v-if="lineSession.status === 'authenticated'">สวัสดี {{ lineSession.profile.displayName }}</strong>
-          <strong v-else-if="lineSession.status === 'local'">โหมดพัฒนา</strong>
+          <strong v-else-if="lineSession.status === 'local'">สวัสดี {{ lineSession.profile?.displayName || 'คุณอนวัช' }}</strong>
           <strong v-else-if="lineSession.status === 'error'">เชื่อม LINE ไม่สำเร็จ</strong>
           <strong v-else-if="lineSession.status === 'unconfigured'">ยังไม่ได้ตั้งค่า LINE</strong>
           <strong v-else>กำลังเชื่อม LINE</strong>
           <small v-if="lineSession.status === 'authenticated'">{{ lineAccountSubtitle }}</small>
-          <small v-else-if="lineSession.status === 'local'">หน้าเว็บจริงจะเข้าสู่ระบบด้วย LINE</small>
+          <small v-else-if="lineSession.status === 'local'">บัญชีจำลอง · บันทึกข้อมูลในเครื่องนี้</small>
           <small v-else-if="lineSession.status === 'error'">ลองปิดแล้วเปิดจากลิงก์ LIFF อีกครั้ง</small>
           <small v-else-if="lineSession.status === 'unconfigured'">กรุณากำหนด LIFF ID</small>
           <small v-else>รอสักครู่</small>
         </div>
+        <button v-if="accountReady" type="button" class="account-profile-button" :aria-current="editingBirthProfile ? 'page' : undefined" @click="setActiveView('account')"><i class="pi pi-user-edit" /> โปรไฟล์</button>
       </div>
     </header>
 
-    <nav v-if="!isBlindTestMode" class="view-navigation" aria-label="เลือกหน้าคำอ่าน">
+    <div v-if="!isBlindTestMode && !accountReady" class="account-loading" role="status">
+      <p>{{ accountSync.error || (['error', 'unconfigured', 'unauthenticated'].includes(lineSession.status) ? 'ยังเปิดบัญชีไม่ได้ กรุณาลองเชื่อมต่ออีกครั้ง' : 'กำลังเปิดข้อมูลของคุณ…') }}</p>
+      <button v-if="accountSync.error || ['error', 'unconfigured', 'unauthenticated'].includes(lineSession.status)" type="button" @click="connectLineAccount">ลองอีกครั้ง</button>
+    </div>
+    <nav v-if="!isBlindTestMode && accountReady && chart" class="view-navigation" aria-label="เลือกหน้าคำอ่าน">
       <button
         type="button"
         :class="{ active: activeView === 'profile' }"
@@ -587,16 +766,7 @@ submit()
         @click="setActiveView('luck')"
       >
         <i class="pi pi-chart-line" />
-        <span><strong>จังหวะชีวิต 10 ปี</strong><small>แนวโน้มในแต่ละช่วงวัย</small></span>
-      </button>
-      <button
-        type="button"
-        :class="{ active: activeView === 'calendar' }"
-        :aria-current="activeView === 'calendar' ? 'page' : undefined"
-        @click="setActiveView('calendar')"
-      >
-        <i class="pi pi-calendar" />
-        <span><strong>ปฏิทินของฉัน</strong><small>วางแผนรายเดือนและรายวัน</small></span>
+        <span><strong>ถนนชีวิต 10 ปี</strong><small>แนวโน้มชีวิตในแต่ละช่วง 10 ปี</small></span>
       </button>
       <button
         type="button"
@@ -609,6 +779,15 @@ submit()
       </button>
       <button
         type="button"
+        :class="{ active: activeView === 'calendar' }"
+        :aria-current="activeView === 'calendar' ? 'page' : undefined"
+        @click="setActiveView('calendar')"
+      >
+        <i class="pi pi-calendar" />
+        <span><strong>ปฏิทินของฉัน</strong><small>วางแผนรายเดือนและรายวัน</small></span>
+      </button>
+      <button
+        type="button"
         :class="{ active: activeView === 'pricing' }"
         :aria-current="activeView === 'pricing' ? 'page' : undefined"
         @click="setActiveView('pricing')"
@@ -618,13 +797,32 @@ submit()
       </button>
     </nav>
 
-    <section v-if="isBlindTestMode || activeView === 'profile'" class="workspace">
+    <IdentityReading
+      v-if="chart && strength && !isBlindTestMode && activeView === 'profile' && !editingBirthProfile"
+      :chart="chart"
+      :assessment="strength"
+      :reading="reading"
+      :input="calculatedInput"
+    />
+    <button v-if="editingBirthProfile && chart && activeView === 'profile'" type="button" class="identity-back" @click="setActiveView('profile')">← กลับไปดูตัวตน</button>
+    <MembershipSummary
+      v-if="!isBlindTestMode && accountReady && chart && ((activeView === 'profile' && editingBirthProfile) || activeView === 'pricing')"
+      :plan-id="accessPlan"
+      :billing-cycle="billingCycle"
+      :expires-at="premiumExpiresAt"
+      :included-used="comparisonIncludedUsed"
+      :purchased-credits="purchasedComparisonCredits"
+      :local="lineSession.status === 'local'"
+      :now="calendarNow"
+      @packages="openPricing()"
+    />
+    <section v-if="isBlindTestMode || (accountReady && activeView === 'profile' && (editingBirthProfile || !chart))" class="workspace" :class="{ 'profile-workspace': !isBlindTestMode }">
       <form class="form-card" @submit.prevent="submit">
         <div class="section-heading">
           <span class="step">01</span>
           <div>
-            <h2>{{ isBlindTestMode ? 'ข้อมูลผู้ทดสอบ' : 'ข้อมูลวันเกิด' }}</h2>
-            <p>{{ isBlindTestMode ? 'ระบบจะใช้ข้อมูลคำนวณคำตอบ แต่ยังไม่แสดงผลให้เห็น' : 'กรอกตามเวลาท้องถิ่นที่บันทึกไว้' }}</p>
+            <h2>{{ isBlindTestMode ? 'ข้อมูลผู้ทดสอบ' : chart ? 'โปรไฟล์ของฉัน' : 'เริ่มต้นด้วยข้อมูลวันเกิดของคุณ' }}</h2>
+            <p>{{ isBlindTestMode ? 'ระบบจะใช้ข้อมูลคำนวณคำตอบ แต่ยังไม่แสดงผลให้เห็น' : chart ? 'แก้ข้อมูลเกิดแล้วบันทึก เพื่ออัปเดตคำอ่านของคุณ' : 'กรอกวัน เวลา และเขตเวลาที่เกิดก่อน เพื่อเปิดคำอ่านปาจื้อของคุณ' }}</p>
           </div>
         </div>
 
@@ -679,54 +877,23 @@ submit()
           <small>เลือกตามประเทศหรือเมืองที่เกิด</small>
         </label>
 
+        <p v-if="chart && !isBlindTestMode" class="comparison-topic-hint">
+          {{ lineSession.status === 'local' ? 'โหมดทดสอบ: แก้ข้อมูลเกิดได้ไม่จำกัด' : 'แก้วันเกิด เวลาเกิด เพศ หรือเขตเวลาได้ 1 ครั้งต่อ 30 วัน บันทึกข้อมูลเดิมไม่นับเป็นการแก้ไข' }}
+          <span v-if="nextBirthEditAt && lineSession.status !== 'local'"> · แก้ไขได้อีกครั้ง {{ formatBirthEditDate(nextBirthEditAt) }}</span>
+        </p>
+        <p v-if="error" class="comparison-error" role="alert">{{ error }}</p>
         <Button
           type="submit"
-          :label="isBlindTestMode ? 'เริ่มการทดสอบ' : 'คำนวณผังดวง'"
+          :label="isBlindTestMode ? 'เริ่มการทดสอบ' : chart ? 'บันทึกโปรไฟล์' : 'บันทึกและดูปาจื้อของฉัน'"
+          :loading="profileSaving"
+          :disabled="profileSaving"
           icon="pi pi-sparkles"
           class="calculate-button"
         />
       </form>
 
-      <section v-if="!isBlindTestMode" class="result-card">
-        <div class="result-topline">
-          <div>
-            <p class="eyebrow">FOUR PILLARS</p>
-            <h2>แปดอักษรประจำดวง</h2>
-          </div>
-          <span class="status-dot">คำนวณในเครื่อง</span>
-        </div>
 
-        <div v-if="error" class="error-box">
-          <i class="pi pi-exclamation-circle" />{{ error }}
-        </div>
-
-        <template v-else-if="chart">
-          <div class="pillars-grid">
-            <article v-for="pillar in pillars" :key="pillar.key" class="pillar">
-              <div class="pillar-label">{{ pillar.title }} <small>{{ pillar.subtitle }}</small></div>
-              <div class="stem">{{ pillar.value?.stem || '—' }}</div>
-              <div class="seed-translation">({{ stemThai(pillar.value) }})</div>
-              <div class="branch">{{ pillar.value?.branch || '—' }}</div>
-              <div class="seed-translation branch-translation">({{ branchThaiLabel(pillar.value) }})</div>
-              <div class="pillar-code">{{ pillarLabel(pillar.value) }}</div>
-            </article>
-          </div>
-
-          <div class="day-master">
-            <span>ดิถี · Day Master</span>
-            <strong>{{ chart.dayMaster?.char || chart.pillars.day.stem }} · {{ elementThaiLabel(chart.dayMaster?.element) }}</strong>
-          </div>
-
-          <div class="birth-summary">
-            <i class="pi pi-clock" />
-            {{ calculatedInput.birthDate }} · {{ calculatedInput.birthTime }} · {{ calculatedInput.timezoneId }}
-          </div>
-        </template>
-
-        <p class="disclaimer">คำอ่านเป็นแนวโน้มจากข้อมูลวันเกิด ไม่ใช่ข้อสรุปตายตัวหรือคำแนะนำทางการแพทย์</p>
-      </section>
-
-      <section v-else class="blind-test-card">
+      <section v-if="isBlindTestMode" class="blind-test-card">
         <div class="result-topline">
           <div>
             <p class="eyebrow">BLIND READING TEST</p>
@@ -809,18 +976,7 @@ submit()
       </section>
     </section>
 
-    <section v-if="reading && !isBlindTestMode && activeView === 'profile'" class="reading-section">
-      <div class="reading-intro">
-        <div>
-          <p class="eyebrow">พื้นดวงและด้านต่าง ๆ ของชีวิต</p>
-          <h2>{{ reading.headline }}</h2>
-          <p>{{ reading.summary }}</p>
-        </div>
-        <div class="reading-badge">
-          <i class="pi pi-sparkles" /> คำอ่านพื้นดวง
-        </div>
-      </div>
-
+    <section v-if="reading && !isBlindTestMode && activeView === 'profile' && !editingBirthProfile" class="reading-section identity-extended">
       <div class="insight-grid">
         <article v-for="item in reading.lifeAreas" :key="item.id" class="insight-card life-area-card">
           <div class="insight-icon"><i class="pi" :class="item.icon" /></div>
@@ -837,38 +993,30 @@ submit()
             <div><span><i class="pi pi-times-circle" /> ควรหลีกเลี่ยง</span><p>{{ item.shouldAvoid }}</p></div>
           </div>
           <small v-if="item.disclaimer" class="life-disclaimer">{{ item.disclaimer }}</small>
-          <div class="feedback-row">
-            <span>{{ feedback[item.id] ? 'ขอบคุณสำหรับคำตอบ' : 'ข้อนี้ตรงกับคุณไหม?' }}</span>
-            <div v-if="!feedback[item.id]">
-              <button type="button" aria-label="ตรง" @click="feedback[item.id] = 'yes'"><i class="pi pi-thumbs-up" /></button>
-              <button type="button" aria-label="ไม่ตรง" @click="feedback[item.id] = 'no'"><i class="pi pi-thumbs-down" /></button>
-            </div>
-            <i v-else class="pi pi-check-circle feedback-done" />
-          </div>
         </article>
       </div>
     </section>
 
-    <section v-if="!isBlindTestMode && activeView === 'compare'" class="comparison-section">
+    <section v-if="chart && !isBlindTestMode && activeView === 'compare'" class="comparison-section">
       <div class="view-profile-summary">
         <div>
           <span>ข้อมูลของคุณที่ใช้เปรียบเทียบ</span>
           <strong>{{ calculatedInput.birthDate }} · {{ calculatedInput.birthTime }} · {{ calculatedInput.gender === 'male' ? 'ชาย' : 'หญิง' }}</strong>
           <small>{{ calculatedInput.timezoneId }}</small>
         </div>
-        <button type="button" @click="setActiveView('profile')"><i class="pi pi-pencil" /> แก้ไขข้อมูล</button>
+        <button type="button" @click="setActiveView('account')"><i class="pi pi-pencil" /> แก้ไขข้อมูล</button>
       </div>
 
       <div class="comparison-heading">
         <div>
           <p class="eyebrow">คำแนะนำเฉพาะความสัมพันธ์</p>
           <h2>เปรียบเทียบคุณกับอีกฝ่าย</h2>
-          <p>เลือกอีกฝ่ายหนึ่งคนและเรื่องที่ต้องการดูหนึ่งเรื่อง เพื่อให้คำแนะนำตรงกับสถานการณ์ของคุณ</p>
+          <p>เลือกคนที่บันทึกไว้หรือกรอกข้อมูลเกิด เพื่อดูภาพรวมเมื่อคุณสองคนอยู่ด้วยกัน</p>
         </div>
         <span class="premium-badge"><i class="pi pi-lock" /> ฟีเจอร์พิเศษ</span>
       </div>
 
-      <div class="quota-status">
+      <div v-if="lineSession.status !== 'local'" class="quota-status">
         <div>
           <span>สิทธิ์ที่ใช้ได้ตอนนี้</span>
           <strong>โควตาแพ็กเกจ {{ comparisonQuota.includedRemaining }}/{{ comparisonQuota.includedLimit }} คน · สิทธิ์ซื้อไว้ {{ comparisonQuota.purchasedRemaining }} คน</strong>
@@ -890,13 +1038,31 @@ submit()
             @click="openSavedComparison(report)"
           >
             <span class="saved-comparison-icon"><i class="pi pi-users" /></span>
-            <span><strong>{{ report.name || 'อีกฝ่าย' }}</strong><small>{{ comparisonContextLabel(report) }}</small></span>
+            <span><strong>{{ report.name || 'อีกฝ่าย' }}</strong><small>{{ comparisonContextLabel(report) }}</small><small v-if="report.isStale" class="stale-report-label">ข้อมูลเก่า · {{ report.ownerProfileVersion ? `โปรไฟล์รุ่น ${report.ownerProfileVersion}` : 'ไม่ทราบข้อมูลเกิดต้นทาง' }}</small></span>
             <i :class="report.result ? 'pi pi-chevron-right' : 'pi pi-refresh'" />
           </button>
         </div>
       </div>
 
-      <form class="comparison-form" @submit.prevent="submitComparison">
+      <div v-if="lineSession.status === 'local'" class="saved-comparisons">
+        <div class="saved-comparisons-heading">
+          <div><span>คนที่บันทึกไว้</span><strong>เก็บในเบราว์เซอร์นี้ · ทดสอบซ้ำได้ไม่จำกัด</strong></div>
+          <Button v-if="selectedComparisonPerson" class="comparison-deselect" label="ยกเลิกการเลือก" icon="pi pi-times" severity="secondary" outlined type="button" @click="newComparisonPerson" />
+        </div>
+        <div class="saved-comparisons-list">
+          <button v-for="person in comparisonPeopleWithScores" :key="person.id" class="saved-person-option" type="button" :aria-pressed="selectedComparisonPerson === person.id" @click="selectComparisonPerson(person)">
+            <span class="saved-comparison-icon"><i class="pi pi-user" /></span>
+            <span><strong>{{ person.name }}</strong><small>{{ person.birthDate }} · {{ person.birthTime || 'ไม่ทราบเวลาเกิด' }}</small></span>
+            <span class="saved-person-score"><strong>{{ person.overallScore ?? '—' }}<small>/100</small></strong><small>คะแนนรวม</small></span>
+            <i :class="selectedComparisonPerson === person.id ? 'pi pi-check-circle' : 'pi pi-chevron-right'" />
+          </button>
+        </div>
+      </div>
+
+      <div v-if="comparisonError" class="comparison-error" role="alert"><i class="pi pi-exclamation-circle" />{{ comparisonError }}</div>
+      <p v-if="comparisonSaveNotice" class="comparison-save-success" role="status"><i class="pi pi-check-circle" /> {{ comparisonSaveNotice }}</p>
+
+      <form v-if="!selectedComparisonPerson" class="comparison-form" @submit.prevent="submitComparison">
         <div class="comparison-form-heading">
           <span class="step">01</span>
           <div><h3>ข้อมูลของอีกฝ่าย</h3><p>เวลาเกิดเว้นว่างได้หากไม่ทราบ</p></div>
@@ -961,39 +1127,37 @@ submit()
           </label>
         </div>
 
-        <div class="comparison-choice-grid">
-          <label class="field">
-            <span>อีกฝ่ายเป็นใครสำหรับคุณ?</span>
-            <Select v-model="comparisonForm.relationship" :options="relationshipOptions" option-label="label" option-value="value" />
-          </label>
-          <label class="field">
-            <span>คุณอยากดูความสัมพันธ์นี้ในด้านใด?</span>
-            <Select v-model="comparisonForm.focus" :options="availableComparisonFocusOptions" option-label="label" option-value="value" />
-          </label>
-        </div>
 
-        <div class="comparison-order-summary">
-          <i class="pi pi-sparkles" />
-          <div><span>คำอ่านรายการนี้</span><strong>{{ selectedRelationshipLabel }} + {{ availableComparisonFocusOptions.find((item) => item.value === comparisonForm.focus)?.label }}</strong></div>
+        <div class="comparison-form-actions">
+          <Button v-if="lineSession.status === 'local'" class="comparison-save-button" type="button" label="บันทึก" icon="pi pi-bookmark" @click="saveComparisonPersonFromForm" />
+          <Button
+            type="submit"
+            label="ดูคะแนน"
+            icon="pi pi-heart"
+            class="calculate-button"
+            :loading="comparisonSubmitting"
+            :disabled="comparisonSubmitting"
+          />
         </div>
-
-        <div v-if="comparisonError" class="comparison-error"><i class="pi pi-exclamation-circle" />{{ comparisonError }}</div>
-        <Button
-          type="submit"
-          label="ดูคำแนะนำความสัมพันธ์"
-          icon="pi pi-heart"
-          class="calculate-button"
-          :loading="comparisonSubmitting"
-          :disabled="comparisonSubmitting"
-        />
       </form>
 
       <article v-if="comparisonResult" class="comparison-result">
+        <div v-if="activeComparisonReport?.isStale" class="comparison-warning">
+          <p>ข้อมูลเก่า — แสดงผลที่บันทึกไว้ ไม่ได้คำนวณด้วยข้อมูลเกิดปัจจุบัน ไม่คืนโควต้า
+            <span v-if="activeComparisonReport.ownerBirthSnapshot"> · ข้อมูลเกิดเดิม: {{ birthProfileToForm(activeComparisonReport.ownerBirthSnapshot).birthDate }} {{ birthProfileToForm(activeComparisonReport.ownerBirthSnapshot).birthTime }} · {{ activeComparisonReport.ownerBirthSnapshot.timezone_id }}</span>
+          </p>
+        </div>
+        <CompatibilityScore v-if="comparisonOverviewScore" :score="comparisonOverviewScore" :name="comparisonForm.name.trim() || 'อีกฝ่าย'" :summary="activeComparisonReport?.isStale ? comparisonResult.summary : comparisonTopics.find(topic => topic.value === 'overview')?.result.summary || ''" />
+        <p v-else class="comparison-warning">รายงานนี้สร้างก่อนมีระบบคะแนน จึงยังแสดงเฉพาะคำอ่านเดิม</p>
+
+        <div class="comparison-topics" role="group" aria-label="เลือกเรื่องที่ต้องการเปรียบเทียบ">
+          <button v-for="topic in comparisonTopics" :key="topic.value" type="button" :aria-pressed="comparisonForm.focus === topic.value" @click="selectComparisonTopic(topic)">
+            <span>{{ topic.label }}</span>
+          </button>
+        </div>
         <div class="comparison-result-heading">
           <div>
-            <span>{{ comparisonForm.name.trim() || 'อีกฝ่าย' }} · {{ selectedRelationshipLabel }}</span>
-            <h3>{{ comparisonResult.headline }}</h3>
-            <p>{{ comparisonResult.focusLabel }}</p>
+            <h3>{{ comparisonResult.focusLabel }}</h3>
           </div>
           <small><i class="pi pi-shield" /> {{ comparisonResult.confidence }}</small>
         </div>
@@ -1003,22 +1167,20 @@ submit()
         </div>
 
         <div class="comparison-result-grid">
-          <div class="comparison-result-card featured"><span>ภาพรวมของคุณสองคน</span><p>{{ comparisonResult.summary }}</p></div>
           <div class="comparison-result-card"><span>จุดที่ไปด้วยกันได้</span><p>{{ comparisonResult.connection }}</p></div>
           <div class="comparison-result-card"><span>วิธีพูดคุยกัน</span><p>{{ comparisonResult.communication }}</p></div>
           <div class="comparison-result-card positive"><span>สิ่งที่ควรทำ</span><p>{{ comparisonResult.shouldDo }}</p></div>
           <div class="comparison-result-card caution"><span>สิ่งที่ควรหลีกเลี่ยง</span><p>{{ comparisonResult.shouldAvoid }}</p></div>
         </div>
 
-        <p class="comparison-disclaimer">คำอ่านนี้แสดงแนวโน้มของวิธีตอบสนองต่อกัน ไม่ได้ตัดสินว่าความสัมพันธ์ใดดีหรือไม่ดีตายตัว</p>
       </article>
     </section>
 
-    <section v-if="!isBlindTestMode && activeView === 'pricing'" class="pricing-section">
+    <section v-if="chart && !isBlindTestMode && activeView === 'pricing'" class="pricing-section">
       <div class="pricing-heading">
         <p class="eyebrow">CHOOSE YOUR PLAN</p>
         <h2>เลือกสิทธิ์ที่เหมาะกับการใช้งาน</h2>
-        <p>พื้นดวง ภาพรวมวันนี้ และถนนสิบปีถึงปัจจุบันยังใช้ฟรี ส่วน Premium ช่วยให้วางแผนล่วงหน้าได้มากขึ้น</p>
+        <p>พื้นดวง วันนี้ และถนนชีวิต 10 ปีทุกช่วงดูฟรี · Premium รายเดือนดูล่วงหน้า 30 วัน รายปีดูล่วงหน้า 90 วัน</p>
       </div>
 
       <div v-if="pricingNotice" class="pricing-notice"><i class="pi pi-info-circle" /> {{ pricingNotice }}</div>
@@ -1030,7 +1192,7 @@ submit()
           <p>ทำความเข้าใจตัวเองและดูภาพรวมของวันนี้</p>
           <ul>
             <li><i class="pi pi-check" /> พื้นดวงทั้งหมด</li>
-            <li><i class="pi pi-check" /> ถนนสิบปีตั้งแต่อดีตถึงปัจจุบัน</li>
+            <li><i class="pi pi-check" /> ถนนชีวิต 10 ปีทุกช่วง</li>
             <li><i class="pi pi-check" /> ภาพรวมและคำแนะนำวันนี้</li>
             <li><i class="pi pi-check" /> เปรียบเทียบบุคคล 1 คน</li>
           </ul>
@@ -1041,15 +1203,12 @@ submit()
           <div class="price-card-topline"><span>วางแผนล่วงหน้า</span><b>แนะนำ</b></div>
           <h3>Premium</h3>
           <div class="price-options">
-            <button type="button" @click="choosePlan('premium')"><strong>149 บาท</strong><small>ต่อเดือน</small></button>
-            <button type="button" @click="choosePlan('premium')"><strong>999 บาท</strong><small>ต่อปี · ประหยัด 789 บาท</small></button>
+            <button type="button" :aria-pressed="selectedBillingCycle === 'monthly'" @click="choosePlan('premium', 'monthly')"><strong>149 บาท</strong><small>ต่อเดือน · ล่วงหน้า 30 วัน</small></button>
+            <button type="button" :aria-pressed="selectedBillingCycle === 'yearly'" @click="choosePlan('premium', 'yearly')"><strong>999 บาท</strong><small>ต่อปี · ล่วงหน้า 90 วัน · ประหยัด 789 บาท</small></button>
           </div>
           <ul>
-            <li><i class="pi pi-check" /> ถนนสิบปีครบทุกช่วง</li>
-            <li><i class="pi pi-check" /> ปฏิทินเดือนนี้และเดือนหน้า</li>
-            <li><i class="pi pi-check" /> ค้นหาวันเหมาะและเปรียบเทียบวัน</li>
-            <li><i class="pi pi-check" /> Notification ที่เลือกหัวข้อได้</li>
-            <li><i class="pi pi-check" /> เปรียบเทียบบุคคล 5 คนต่อเดือน</li>
+            <li><i class="pi pi-check" /> ปฏิทินล่วงหน้า: รายเดือน 30 วัน · รายปี 90 วัน</li>
+            <li><i class="pi pi-check" /> เปรียบเทียบบุคคล: รายเดือน 5 คน/เดือน · รายปี 10 คน/เดือน</li>
           </ul>
           <button type="button" class="price-button primary" @click="choosePlan('premium')">เลือก Premium</button>
         </article>
@@ -1062,13 +1221,15 @@ submit()
             <li><i class="pi pi-check" /> เลือกคนและเรื่องที่อยากดู</li>
             <li><i class="pi pi-check" /> เปิดรายงานเดิมซ้ำได้</li>
             <li><i class="pi pi-check" /> หากเป็น Premium ระบบใช้โควตารายเดือนก่อน</li>
-            <li><i class="pi pi-check" /> ไม่รวมปฏิทินและถนนสิบปีในอนาคต</li>
+            <li><i class="pi pi-check" /> ไม่รวมสิทธิ์ปฏิทิน Premium</li>
           </ul>
           <button type="button" class="price-button secondary" @click="choosePlan('comparison')">เลือกเฉพาะเปรียบเทียบ</button>
         </article>
       </div>
 
-      <p class="pricing-footnote">ระบบรับชำระเงินและการต่ออายุยังไม่ได้เปิดใช้งาน หน้านี้เป็นต้นแบบเพื่อยืนยันแพ็กเกจและประสบการณ์ใช้งาน</p>
+      <p class="pricing-footnote">ช่วงดูล่วงหน้าเลื่อนตามวันใช้งาน ขณะสมาชิกยังมีผล เมื่อหมดอายุดูได้เฉพาะวันนี้ โดยไม่ลบข้อมูลที่บันทึกไว้</p>
+      <BillingPanel :id-token="lineSession.idToken || ''" :product="selectedBillingProduct" :local="lineSession.status === 'local'" @refresh-account="refreshBillingAccount" />
+      <p class="pricing-footnote">Stripe อยู่ในโหมดทดสอบ ยังไม่เปิดรับเงินจริง</p>
     </section>
 
     <section v-if="personalMonth && !isBlindTestMode && activeView === 'calendar'" class="calendar-section">
@@ -1078,16 +1239,15 @@ submit()
           <strong>{{ calculatedInput.birthDate }} · {{ calculatedInput.birthTime }} · {{ calculatedInput.gender === 'male' ? 'ชาย' : 'หญิง' }}</strong>
           <small>{{ calculatedInput.timezoneId }}</small>
         </div>
-        <button type="button" @click="setActiveView('profile')"><i class="pi pi-pencil" /> แก้ไขข้อมูล</button>
+        <button type="button" @click="setActiveView('account')"><i class="pi pi-pencil" /> แก้ไขข้อมูล</button>
       </div>
 
       <div class="calendar-heading">
         <div>
-          <p class="eyebrow">PERSONAL DECISION CALENDAR</p>
-          <h2>ปฏิทินช่วยวางแผนของคุณ</h2>
-          <p>เลือกเรื่องที่กำลังสนใจ แล้วดูว่าแต่ละวันเหมาะกับการเดินหน้า เตรียมตัว หรือเพิ่มความระมัดระวังอย่างไร</p>
+          <h2>ปฏิทินของคุณ</h2>
+          <p>วันไหนเหมาะกับเรื่องอะไร เลือกวันเพื่ออ่านคำแนะนำที่คำนวณจากข้อมูลเกิดของคุณ</p>
         </div>
-        <span class="premium-badge"><i class="pi" :class="isPremium ? 'pi-crown' : 'pi-calendar'" /> {{ isPremium ? 'Premium' : 'วันนี้ใช้ฟรี' }}</span>
+        <span class="premium-badge"><i class="pi" :class="isPremium ? 'pi-crown' : 'pi-calendar'" /> {{ calendarPlan.localPreview ? 'โหมดทดสอบ · ล่วงหน้า 90 วัน' : isPremium ? 'Premium · ล่วงหน้า ' + calendarDaysAhead + ' วัน' : 'วันนี้ใช้ฟรี' }}</span>
       </div>
 
       <label class="field calendar-focus-field">
@@ -1095,32 +1255,8 @@ submit()
         <Select v-model="calendarFocus" :options="calendarFocusOptions" option-label="label" option-value="value" />
       </label>
 
-      <article class="calendar-month-summary">
-        <span>ภาพรวม {{ personalMonth.monthLabel }}</span>
-        <h3>{{ personalMonth.focusLabel }}</h3>
-        <p>{{ personalMonth.summary }}</p>
-        <div class="calendar-month-counts">
-          <b><i class="pi pi-arrow-up-right" /> วันที่เหมาะเดินหน้า {{ personalMonth.counts.supportive }} วัน</b>
-          <b><i class="pi pi-shield" /> วันที่ควรเพิ่มความระวัง {{ personalMonth.counts.caution }} วัน</b>
-        </div>
-      </article>
-
-      <div v-if="isPremium" class="calendar-highlights">
-        <div>
-          <span>วันที่น่าใช้กับเรื่องสำคัญ</span>
-          <button v-for="day in personalMonth.recommended" :key="day.key" type="button" @click="selectCalendarDay(day)">
-            {{ day.day }} <small>{{ day.tag }}</small>
-          </button>
-        </div>
-        <div class="caution">
-          <span>วันที่ควรวางแผนเผื่อไว้</span>
-          <button v-for="day in personalMonth.caution" :key="day.key" type="button" @click="selectCalendarDay(day)">
-            {{ day.day }} <small>{{ day.tag }}</small>
-          </button>
-        </div>
-      </div>
-      <button v-else type="button" class="feature-lock-callout" @click="openPricing('วันที่น่าใช้และวันที่ควรวางแผนเผื่อเป็นสิทธิ์ของสมาชิก Premium')">
-        <i class="pi pi-lock" /><span><strong>เปิดวันที่น่าใช้ตลอดทั้งเดือน</strong><small>รวมวันที่ควรวางแผนเผื่อและรายละเอียดรายวัน</small></span><b>ดู Premium</b>
+      <button v-if="!isPremium" type="button" class="feature-lock-callout" @click="openPricing('Premium รายเดือนดูล่วงหน้า 30 วัน รายปีดูล่วงหน้า 90 วัน')">
+        <i class="pi pi-lock" /><span><strong>วางแผนล่วงหน้า 30 หรือ 90 วัน</strong><small>เปิดคะแนนและรายละเอียดรายวัน</small></span><b>ดู Premium</b>
       </button>
 
       <div class="calendar-panel">
@@ -1139,48 +1275,32 @@ submit()
             :key="day.key"
             type="button"
             class="calendar-day"
-            :class="[day.level, { selected: selectedCalendarDay?.key === day.key, today: day.isToday, locked: !canAccessCalendarDay(day, accessPlan) }]"
-            :aria-label="`วันที่ ${day.day} ${day.tag}`"
-            :aria-pressed="selectedCalendarDay?.key === day.key"
+            :class="[calendarDayAllowed(day) ? day.level : null, { selected: calendarDayAllowed(day) && selectedCalendarDay?.key === day.key, today: day.isToday, locked: calendarDayState(day) === 'premium', unavailable: calendarDayState(day) === 'unavailable' }]"
+            :aria-label="calendarDayAllowed(day) ? `วันที่ ${day.day} คะแนน ${day.personalScore} จาก 100 ${day.stars.map(star => star.name).join(' ')}` : calendarDayState(day) === 'unavailable' ? `วันที่ ${day.day} ไม่เปิดให้ดู อยู่นอกช่วงวันนี้ถึงล่วงหน้า 90 วัน` : `วันที่ ${day.day} สำหรับ ${isPremium ? 'Premium รายปี' : 'Premium'}`"
+            :disabled="calendarDayState(day) === 'unavailable'"
+            :aria-pressed="calendarDayAllowed(day) && selectedCalendarDay?.key === day.key"
             @click="selectCalendarDay(day)"
           >
             <span>{{ day.day }}</span>
-            <i v-if="!canAccessCalendarDay(day, accessPlan)" class="pi pi-lock calendar-lock-icon" />
-            <i v-else class="calendar-day-dot" />
-            <small>{{ canAccessCalendarDay(day, accessPlan) ? day.tag : 'Premium' }}</small>
+            <span v-if="calendarDayState(day) === 'unavailable'" class="calendar-unavailable-mark" aria-hidden="true">—</span>
+            <i v-else-if="!calendarDayAllowed(day)" class="pi pi-lock calendar-lock-icon" />
+            <b v-else class="calendar-personal-score">{{ day.personalScore }}<em>/100</em></b>
+            <span v-if="calendarDayAllowed(day) && day.stars.length" class="calendar-personal-stars">
+              <i v-for="star in day.stars" :key="star.id" class="pi" :class="star.icon" :title="star.name" :aria-label="star.name" />
+            </span>
+            <small v-else-if="calendarDayState(day) === 'premium'">{{ isPremium ? 'รายปี' : 'Premium' }}</small>
           </button>
         </div>
         <div class="calendar-legend">
+          <span>— ไม่เปิดให้ดู (วันย้อนหลังหรือเกิน 90 วัน)</span>
           <span><i class="strong" /> เหมาะเดินหน้า</span>
           <span><i class="balanced" /> ใช้ได้เมื่อเตรียมตัว</span>
           <span><i class="caution" /> เพิ่มความระวัง</span>
         </div>
       </div>
 
-      <article v-if="selectedCalendarDay" class="daily-reading">
-        <div class="daily-reading-heading">
-          <div>
-            <span>{{ selectedCalendarDay.isToday ? 'วันนี้' : 'คำแนะนำประจำวันที่เลือก' }}</span>
-            <h3>{{ selectedCalendarDay.day }} {{ personalMonth.monthLabel }}</h3>
-            <p>{{ selectedCalendarDay.headline }}</p>
-          </div>
-          <small>{{ selectedCalendarDay.confidence }}</small>
-        </div>
-        <p class="daily-summary">{{ selectedCalendarDay.summary }}</p>
-        <div v-if="selectedCalendarDay.topicReadings" class="daily-topic-grid">
-          <div v-for="topic in selectedCalendarDay.topicReadings" :key="topic.focus" :class="topic.level">
-            <span>{{ topic.focusLabel }}</span>
-            <strong>{{ topic.status }}</strong>
-            <small>{{ topic.tag }}</small>
-          </div>
-        </div>
-        <div class="daily-advice">
-          <span><i class="pi pi-compass" /> คำแนะนำสำหรับวันนี้</span>
-          <p>{{ selectedCalendarDay.dailyAdvice }}</p>
-        </div>
-      </article>
+      <PersonalDayReading v-if="selectedCalendarDay && calendarDayAllowed(selectedCalendarDay)" :day="selectedCalendarDay" :month-label="personalMonth.monthLabel" />
 
-      <p class="calendar-note"><i class="pi pi-info-circle" /> ปฏิทินนี้แสดงจังหวะที่สัมพันธ์กับพื้นดวงและช่วงชีวิตของคุณ ไม่ได้รับประกันผลลัพธ์ของเหตุการณ์</p>
     </section>
 
     <section v-if="luckTimeline && !isBlindTestMode && activeView === 'luck'" class="luck-section">
@@ -1190,13 +1310,13 @@ submit()
           <strong>{{ calculatedInput.birthDate }} · {{ calculatedInput.birthTime }} · {{ calculatedInput.gender === 'male' ? 'ชาย' : 'หญิง' }}</strong>
           <small>{{ calculatedInput.timezoneId }}</small>
         </div>
-        <button type="button" @click="setActiveView('profile')"><i class="pi pi-pencil" /> แก้ไขข้อมูล</button>
+        <button type="button" @click="setActiveView('account')"><i class="pi pi-pencil" /> แก้ไขข้อมูล</button>
       </div>
 
       <div class="luck-heading">
         <div>
           <p class="eyebrow">ภาพรวมชีวิตเป็นช่วง</p>
-          <h2>จังหวะชีวิตในแต่ละ 10 ปี</h2>
+          <h2>ถนนชีวิต 10 ปี</h2>
           <p>เลือกช่วงอายุเพื่อดูว่าเรื่องใดมีแนวโน้มเด่นขึ้น และควรวางตัวอย่างไร</p>
         </div>
       </div>
@@ -1226,7 +1346,7 @@ submit()
             :key="cycle.index"
             type="button"
             class="luck-cycle"
-            :class="{ current: cycle.isCurrent, selected: cycle.index === selectedLuckCycle.index, locked: !canAccessLuckCycle(cycle, currentLuckCycle, accessPlan) }"
+            :class="{ current: cycle.isCurrent, selected: cycle.index === selectedLuckCycle.index }"
             :data-cycle-index="cycle.index"
             :aria-label="`ดูคำอ่านช่วงที่ ${cycle.index} อายุ ${cycle.startAge} ถึง ${cycle.endAge} ปี`"
             :aria-pressed="cycle.index === selectedLuckCycle.index"
@@ -1246,7 +1366,6 @@ submit()
               <p class="luck-years">อายุ {{ cycle.startAge }}–{{ cycle.endAge }} ปี</p>
               <p class="luck-calendar">พ.ศ. {{ cycle.startYear + 543 }}–{{ cycle.endYear + 543 }} <small>ค.ศ. {{ cycle.startYear }}–{{ cycle.endYear }}</small></p>
             </div>
-            <div v-if="!canAccessLuckCycle(cycle, currentLuckCycle, accessPlan)" class="luck-cycle-lock"><i class="pi pi-lock" /><span>Premium</span></div>
           </button>
         </div>
 
@@ -1263,17 +1382,7 @@ submit()
 
       <p class="luck-carousel-position">ช่วงที่ {{ selectedLuckPosition + 1 }} จาก {{ luckTimeline.cycles.length }}</p>
 
-      <article v-if="selectedLuckLocked" class="luck-premium-gate">
-        <div class="luck-premium-icon"><i class="pi pi-lock" /></div>
-        <span>PREMIUM</span>
-        <h3>ช่วงชีวิตในอนาคต</h3>
-        <p>สมัคร Premium เพื่อเปิดคำอ่านถนนสิบปีในอนาคต พร้อมคำแนะนำด้านงาน การเงิน ความสัมพันธ์ และสิ่งที่ควรวางแผนในแต่ละช่วง</p>
-        <button type="button" @click="openPricing('ถนนสิบปีในอนาคตเป็นสิทธิ์ของสมาชิก Premium')">
-          ดูแพ็กเกจ <i class="pi pi-arrow-right" />
-        </button>
-      </article>
-
-      <article v-else-if="selectedLuckReading" class="current-luck-reading">
+      <article v-if="selectedLuckReading" class="current-luck-reading">
         <div class="current-luck-heading">
           <div>
             <span>{{ selectedLuckReading.isCurrent ? 'ช่วงชีวิตปัจจุบัน' : `ช่วงชีวิตที่ ${selectedLuckReading.index}` }}</span>
@@ -1297,7 +1406,6 @@ submit()
         </div>
       </article>
 
-      <p class="luck-note"><i class="pi pi-info-circle" /> ภาพรวมนี้แสดงแนวโน้มของแต่ละช่วงวัย เหตุการณ์จริงยังขึ้นอยู่กับการตัดสินใจและสถานการณ์ของแต่ละคน</p>
     </section>
   </main>
 </template>

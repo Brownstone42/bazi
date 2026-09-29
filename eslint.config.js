@@ -15,7 +15,7 @@ export default [
     }
   },
   {
-    files: ['netlify/functions/**/*.mjs'],
+    files: ['netlify/**/*.mjs'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',

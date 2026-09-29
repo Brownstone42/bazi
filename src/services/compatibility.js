@@ -1,3 +1,5 @@
+import { calculateCompatibilityScore } from './compatibility-score.js'
+
 const produces = {
   wood: 'fire',
   fire: 'earth',
@@ -124,7 +126,7 @@ function branchSignal(firstChart, secondChart, focus, hasBirthTime) {
     friendship: ['year', 'month', 'day', 'hour'],
     overview: ['day', 'month', 'year', 'hour']
   }
-  const positions = positionsByFocus[focus].filter((position) => position !== 'hour' || hasBirthTime)
+  const positions = (positionsByFocus[focus] ?? positionsByFocus.overview).filter((position) => position !== 'hour' || hasBirthTime)
   let support = 0
   let challenge = 0
 
@@ -151,6 +153,7 @@ export function interpretCompatibility(firstChart, secondChart, options) {
       : `${focus.smooth} ${focus.friction}`
 
   return {
+    score: calculateCompatibilityScore(firstChart, secondChart, options),
     focusLabel: focus.label,
     headline: focus.headline,
     summary: `${dynamic.text} ${relationshipTone[options.relationship] ?? ''}`.trim(),

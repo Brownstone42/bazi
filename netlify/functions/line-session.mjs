@@ -1,14 +1,14 @@
 import { createHash } from 'node:crypto'
 
 const jsonHeaders = { 'content-type': 'application/json; charset=utf-8' }
-const relationships = new Set(['interest', 'partner', 'spouse', 'parent', 'child', 'sibling', 'friend', 'boss', 'colleague', 'subordinate', 'business_partner', 'client'])
+const relationships = new Set(['unspecified', 'interest', 'partner', 'spouse', 'parent', 'child', 'sibling', 'friend', 'boss', 'colleague', 'subordinate', 'business_partner', 'client'])
 const focuses = new Set(['love', 'family', 'work', 'friendship', 'overview'])
 
 function jsonResponse(payload, status = 200) {
   return new Response(JSON.stringify(payload), { status, headers: jsonHeaders })
 }
 
-function requiredEnvironment() {
+export function requiredEnvironment() {
   const config = {
     channelId: process.env.LINE_CHANNEL_ID,
     supabaseUrl: process.env.SUPABASE_URL,
@@ -33,7 +33,7 @@ export async function verifyLineIdToken(idToken, channelId, fetchImpl = fetch) {
   return payload
 }
 
-function createSupabaseRest(config, fetchImpl = fetch) {
+export function createSupabaseRest(config, fetchImpl = fetch) {
   return async function request(path, { method = 'GET', body, prefer } = {}) {
     const response = await fetchImpl(`${config.supabaseUrl}/rest/v1/${path}`, {
       method,
@@ -142,10 +142,10 @@ async function readAccount(rest, userId) {
       method: 'PATCH', body: updates, prefer: 'return=representation'
     })
   }
-  const [birthProfile] = await rest(`birth_profiles?user_id=eq.${encodeURIComponent(userId)}&select=birth_date,birth_time,gender,timezone_id&limit=1`)
+  const [birthProfile] = await rest(`birth_profiles?user_id=eq.${encodeURIComponent(userId)}&select=*&limit=1`)
   let comparisonReports = []
   try {
-    comparisonReports = await rest(`comparison_reports?user_id=eq.${encodeURIComponent(userId)}&select=id,person_name,birth_date,birth_time,gender,timezone_id,relationship,focus,quota_source,result_json,created_at&order=created_at.desc&limit=20`)
+    comparisonReports = await rest(`comparison_reports?user_id=eq.${encodeURIComponent(userId)}&select=*&order=created_at.desc&limit=20`)
   } catch {
     // รองรับช่วง deploy ก่อนที่ migration รายการเปรียบเทียบจะถูกรัน
   }
@@ -155,6 +155,7 @@ async function readAccount(rest, userId) {
 function entitlementPayload(entitlement) {
   return {
     planId: entitlement.plan_id,
+    billingCycle: entitlement.billing_cycle ?? 'monthly',
     premiumExpiresAt: entitlement.premium_expires_at ?? null,
     includedComparisonUsed: entitlement.plan_id === 'premium'
       ? entitlement.included_comparison_used
@@ -163,9 +164,12 @@ function entitlementPayload(entitlement) {
   }
 }
 
-function reportPayload(report) {
+export function reportPayload(report, currentVersion) {
   return {
     id: report.id,
+    ownerProfileVersion: report.owner_profile_version ?? null,
+    ownerBirthSnapshot: report.owner_birth_snapshot ?? null,
+    isStale: report.owner_profile_version == null || (currentVersion != null && report.owner_profile_version !== currentVersion),
     name: report.person_name,
     birthDate: displayBirthDate(report.birth_date),
     birthTime: report.birth_time ? String(report.birth_time).slice(0, 5) : '',
@@ -179,12 +183,14 @@ function reportPayload(report) {
   }
 }
 
-async function reserveComparison(rest, userId, rawProfile) {
+async function reserveComparison(rest, userId, rawProfile, expectedVersion) {
+  if (!Number.isInteger(expectedVersion) || expectedVersion < 1) throw new Error('Invalid profile version')
   const profile = normalizeComparisonProfile(rawProfile)
-  const [reservation] = await rest('rpc/reserve_comparison_report', {
+  const [reservation] = await rest('rpc/reserve_comparison_report_v2', {
     method: 'POST',
     body: {
       p_user_id: userId,
+      p_expected_version: expectedVersion,
       p_fingerprint: comparisonFingerprint(profile),
       p_person_name: profile.person_name,
       p_birth_date: profile.birth_date,
@@ -196,10 +202,13 @@ async function reserveComparison(rest, userId, rawProfile) {
     }
   })
   const allowed = Boolean(reservation?.report_id)
+  const savedReport = allowed
+    ? (await rest(`comparison_reports?id=eq.${encodeURIComponent(reservation.report_id)}&user_id=eq.${encodeURIComponent(userId)}&select=*`))[0]
+    : null
   return {
     allowed,
     existing: allowed && reservation.is_existing,
-    report: allowed ? {
+    report: savedReport ? reportPayload(savedReport, expectedVersion) : allowed ? {
       id: reservation.report_id,
       name: profile.person_name,
       birthDate: displayBirthDate(profile.birth_date),
@@ -213,7 +222,6 @@ async function reserveComparison(rest, userId, rawProfile) {
     } : null,
     entitlement: {
       planId: reservation.current_plan,
-      premiumExpiresAt: null,
       includedComparisonUsed: reservation.included_used,
       purchasedComparisonCredits: reservation.purchased_remaining
     }
@@ -228,7 +236,7 @@ async function saveComparisonResult(rest, userId, reportId, result) {
   const serialized = JSON.stringify(result)
   if (serialized.length > 30000) throw new Error('Comparison result is too large')
   const reports = await rest(
-    `comparison_reports?id=eq.${encodeURIComponent(reportId)}&user_id=eq.${encodeURIComponent(userId)}&select=id,person_name,birth_date,birth_time,gender,timezone_id,relationship,focus,quota_source,result_json,created_at`,
+    `comparison_reports?id=eq.${encodeURIComponent(reportId)}&user_id=eq.${encodeURIComponent(userId)}&select=*`,
     {
       method: 'PATCH',
       body: { result_json: result, updated_at: new Date().toISOString() },
@@ -267,7 +275,7 @@ export default async (request) => {
     })
 
     if (body.action === 'reserveComparison') {
-      return jsonResponse(await reserveComparison(rest, user.id, body.comparisonProfile))
+      return jsonResponse(await reserveComparison(rest, user.id, body.comparisonProfile, body.profileVersion))
     }
 
     if (body.action === 'saveComparisonResult') {
@@ -278,11 +286,12 @@ export default async (request) => {
 
     const birthProfile = normalizeBirthProfile(body.birthProfile)
     if (birthProfile) {
-      await rest('birth_profiles?on_conflict=user_id', {
+      const saved = await rest('rpc/save_birth_profile', {
         method: 'POST',
-        prefer: 'resolution=merge-duplicates,return=minimal',
-        body: { user_id: user.id, ...birthProfile, updated_at: now }
+        body: { p_user_id: user.id, p_birth_date: birthProfile.birth_date, p_birth_time: birthProfile.birth_time,
+          p_gender: birthProfile.gender, p_timezone_id: birthProfile.timezone_id }
       })
+      if (!saved?.allowed) return jsonResponse({ error: 'แก้ข้อมูลเกิดได้ 1 ครั้งต่อ 30 วัน กรุณารอถึงวันที่แก้ไขได้อีกครั้ง', nextEditAt: saved?.nextEditAt }, 409)
     }
 
     const account = await readAccount(rest, user.id)
@@ -290,9 +299,14 @@ export default async (request) => {
       user: { id: user.id, displayName: user.display_name, pictureUrl: user.picture_url },
       entitlement: entitlementPayload(account.entitlement),
       birthProfile: account.birthProfile,
-      comparisonReports: account.comparisonReports.map(reportPayload)
+      nextBirthEditAt: account.birthProfile?.last_birth_edit_at
+        ? new Date(new Date(account.birthProfile.last_birth_edit_at).getTime() + 30 * 86400000).toISOString() : null,
+      comparisonReports: account.comparisonReports.map(report => reportPayload(report, account.birthProfile?.profile_version))
     })
   } catch (error) {
+    if (error instanceof Error && error.message.includes('profile_version_changed')) {
+      return jsonResponse({ error: 'ข้อมูลเกิดเปลี่ยนแล้ว กรุณารีเฟรชหน้าและเปรียบเทียบใหม่ รายงานเดิมยังเก็บไว้และไม่คืนโควต้า' }, 409)
+    }
     console.error('line-session failed', {
       message: error instanceof Error ? error.message : String(error)
     })

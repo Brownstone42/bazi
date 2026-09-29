@@ -81,7 +81,7 @@ describe('natal chart interpretation', () => {
     expect(publicText).not.toMatch(/ดิถี|ก้านฟ้า|กิ่งดิน|สิบเทพ|ธาตุให้คุณ|[一-龥]/)
   })
 
-  it('keeps the health disclaimer separate from personalized avoidance guidance', () => {
+  it('keeps personalized avoidance guidance without the removed generic disclaimer', () => {
     const chart = calculateChart({
       birthDate: '26/08/1989',
       birthTime: '11:30',
@@ -92,6 +92,6 @@ describe('natal chart interpretation', () => {
 
     expect(wellbeing.shouldAvoid).not.toMatch(/วินิจฉัยโรค|ปรับยา|พบแพทย์/)
     expect(wellbeing.shouldAvoid.length).toBeGreaterThan(60)
-    expect(wellbeing.disclaimer).toContain('ปรึกษาแพทย์')
+    expect(wellbeing.disclaimer).toBeUndefined()
   })
 })

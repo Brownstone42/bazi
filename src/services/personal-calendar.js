@@ -1,4 +1,11 @@
 import { calculateChart } from './bazi'
+import { personalStars } from './personal-stars'
+import { buildDailyBalance } from './daily-balance'
+
+// Display scale only; the existing -5..5 model still determines ranking.
+export function personalDayScore(score) {
+  return Math.round(50 + Math.max(-5, Math.min(5, score)) * 10)
+}
 
 const elements = ['wood', 'fire', 'earth', 'metal', 'water']
 const produces = { wood: 'fire', fire: 'earth', earth: 'metal', metal: 'water', water: 'wood' }
@@ -13,7 +20,7 @@ const thaiMonths = [
 
 export const calendarFocusOptions = [
   { label: 'ภาพรวมทุกเรื่อง', value: 'all', icon: 'pi-sparkles' },
-  { label: 'งานและธุรกิจ', value: 'work', icon: 'pi-briefcase' },
+  { label: 'การงาน', value: 'work', icon: 'pi-briefcase' },
   { label: 'การเงิน', value: 'money', icon: 'pi-wallet' },
   { label: 'ความรัก', value: 'love', icon: 'pi-heart' },
   { label: 'การเจรจา', value: 'communication', icon: 'pi-comments' },
@@ -22,10 +29,10 @@ export const calendarFocusOptions = [
 
 const focusProfiles = {
   work: {
-    label: 'งานและธุรกิจ', positions: ['month', 'hour'], preferred: ['output', 'power', 'wealth'],
+    label: 'การงาน', positions: ['month', 'hour'], preferred: ['output', 'power', 'wealth'],
     goodTag: 'งานเดินหน้า', mixedTag: 'จัดลำดับงาน', cautionTag: 'อย่าฝืนจังหวะ',
-    overviewGood: 'งานและธุรกิจเหมาะกับการเดินหน้างานที่เตรียมข้อมูลไว้แล้ว',
-    overviewCaution: 'งานและธุรกิจควรลดขอบเขตและเผื่อเวลาตัดสินใจ',
+    overviewGood: 'การงานเหมาะกับการเดินหน้างานที่เตรียมข้อมูลไว้แล้ว',
+    overviewCaution: 'การงานควรลดขอบเขตและเผื่อเวลาตัดสินใจ',
     goodDo: 'ใช้วันนี้กับงานสำคัญ การเสนอความคิด การขอคำตอบ หรือการตัดสินใจที่เตรียมข้อมูลไว้แล้ว',
     mixedDo: 'เลือกงานหลักเพียงหนึ่งเรื่อง ทำขอบเขตและผู้รับผิดชอบให้ชัดก่อนเริ่ม',
     cautionDo: 'ทบทวนข้อมูล ลดขอบเขตงาน และเผื่อเวลาให้การตัดสินใจมากกว่าปกติ'
@@ -142,7 +149,7 @@ function mondayFirstWeekday(year, month, day = 1) {
 
 function scoreElement(element, assessment) {
   if (element === assessment.primaryUsefulElement) return 2
-  if (element === assessment.supportiveElement) return 1
+  if (element === assessment.supportiveElement || assessment.supportiveElements?.includes(element)) return 1
   if ((assessment.cautionElements ?? []).includes(element)) return -1.5
   return 0
 }
@@ -167,6 +174,29 @@ function levelFromScore(score) {
   return 'caution'
 }
 
+const elementNames = { wood: 'ไม้', fire: 'ไฟ', earth: 'ดิน', metal: 'ทอง', water: 'น้ำ' }
+const positionNames = { year: 'คนรอบตัวและสภาพแวดล้อม', month: 'งานและความรับผิดชอบ', day: 'ชีวิตส่วนตัวและความสัมพันธ์', hour: 'แผนระยะยาว' }
+function explainScore(factors, personalScore, overview = false) {
+  const grouped = new Map()
+  for (const factor of factors) {
+    const previous = grouped.get(factor.id)
+    grouped.set(factor.id, { ...factor, points: (previous?.points ?? 0) + factor.delta * 10 })
+  }
+  const items = [...grouped.values()].map(item => ({ ...item, points: Math.round(item.points * 100) / 100 })).filter(item => Math.abs(item.points) >= 0.01 || ['day-element', 'day-base'].includes(item.id))
+  const positive = items.filter(item => item.points > 0 && !item.technical).sort((a, b) => b.points - a.points)
+  const negative = items.filter(item => item.points < 0 && !item.technical).sort((a, b) => a.points - b.points)
+  const summary = positive.length && negative.length
+    ? `วันนี้มีทั้งปัจจัยเพิ่มและลดคะแนน ส่วนที่ช่วยมากที่สุดคือ${positive[0].label} ส่วนที่ถ่วงมากที่สุดคือ${negative[0].label}`
+    : positive.length ? `คะแนนเพิ่มจากค่ากลาง โดยมี${positive[0].label}เป็นปัจจัยหลัก`
+      : negative.length ? `คะแนนลดจากค่ากลาง โดยมี${negative[0].label}เป็นปัจจัยหลัก`
+        : 'ปัจจัยที่ตรวจให้ผลใกล้เคียงค่ากลาง ยังไม่มีด้านใดเพิ่มหรือลดคะแนนอย่างชัดเจน'
+  return {
+    base: 50, factors: items, summary,
+    adjustment: Math.round((personalScore - 50 - items.reduce((sum, item) => sum + item.points, 0)) * 100) / 100,
+    method: overview ? 'ภาพรวมเฉลี่ยปัจจัยของทั้ง 5 ด้านเท่ากัน ตัวเลขด้านล่างคือผลต่อคะแนนรวม' : 'เริ่มจากค่ากลาง 50 คะแนน แล้วเพิ่มหรือลดตามปัจจัยของด้านนี้'
+  }
+}
+
 function buildDayReading({ year, month, day, chart, assessment, input, focus, currentLuckCycle, todayKey, transit: suppliedTransit }) {
   const profile = focusProfiles[focus]
   const transit = suppliedTransit ?? calculateChart({
@@ -180,18 +210,39 @@ function buildDayReading({ year, month, day, chart, assessment, input, focus, cu
   const yearPillar = transit.pillars.year
   const relation = relationToDayMaster(chart.dayMaster.element, dayPillar.element)
   const interactions = collectInteractions(dayPillar.branch, chart, profile.positions)
-  let score = scoreElement(dayPillar.element, assessment) + scoreElement(dayPillar.branchElement, assessment) * 0.7
-  if (profile.preferred.includes(relation)) score += 1.25
+  let score = 0
+  const factors = []
+  const add = (id, label, detail, delta, technical = false) => {
+    score += delta
+    factors.push({ id, label, detail, delta, technical })
+  }
+  for (const [id, element, weight, label] of [
+    ['day-element', dayPillar.element, 1, 'ธาตุหลักของวัน'],
+    ['day-base', dayPillar.branchElement, 0.7, 'ธาตุประกอบของวัน']
+  ]) {
+    const delta = scoreElement(element, assessment) * weight
+    add(id, `${label} (${elementNames[element]})`, assessment.elementAssessments?.[element]?.reason ?? (delta > 0
+      ? `ธาตุ${elementNames[element]}อยู่ในกลุ่มที่ระบบประเมินว่าช่วยสมดุลดวงคุณ`
+      : delta < 0 ? `ธาตุ${elementNames[element]}อยู่ในกลุ่มที่ดวงคุณควรระวังเมื่อมีมากเกินไป`
+        : 'ธาตุนี้ไม่อยู่ในกลุ่มเพิ่มหรือลดคะแนนของดวงคุณ'), delta)
+  }
+  if (profile.preferred.includes(relation)) add('topic-fit', 'ลักษณะของวันที่สอดคล้องกับหัวข้อ', 'ความสัมพันธ์ระหว่างธาตุของวันกับธาตุประจำตัว ตรงกับกลุ่มที่เกณฑ์ของหัวข้อนี้ให้น้ำหนักเพิ่ม', 1.25)
   interactions.forEach((interaction) => {
-    if (interaction.type === 'combine') score += 1.5
-    if (interaction.type === 'clash') score -= 2.5
-    if (interaction.type === 'harm') score -= 1.25
-    if (interaction.type === 'repeat') score += score >= 0 ? 0.5 : -0.5
+    const area = positionNames[interaction.position]
+    const definitions = {
+      combine: [`จังหวะที่เข้ากันในเรื่อง${area}`, 'พบคู่สัมพันธ์ที่เกณฑ์นี้อ่านว่าเอื้อต่อความร่วมมือ', 1.5],
+      clash: [`จังหวะที่ขัดกันในเรื่อง${area}`, 'พบคู่สัมพันธ์ที่เกณฑ์นี้อ่านว่ามีแรงขัดแย้งหรือการเปลี่ยนแปลงในด้านที่เกี่ยวข้อง', -2.5],
+      harm: [`ความติดขัดในเรื่อง${area}`, 'พบคู่สัมพันธ์ที่เกณฑ์นี้อ่านว่าอาจมีความไม่ลงตัวหรือเข้าใจคลาดเคลื่อน', -1.25],
+      repeat: [`การเน้นเรื่อง${area}ซ้ำ`, 'วันจรมีตำแหน่งซ้ำกับพื้นดวง สูตรปัจจุบันจึงขยายแนวโน้มคะแนนที่มีอยู่ในขั้นนี้เล็กน้อย', score >= 0 ? 0.5 : -0.5]
+    }
+    add(`${interaction.type}-${interaction.position}`, ...definitions[interaction.type])
   })
   if (currentLuckCycle?.branch) {
-    if (hasPair(branchCombinations, dayPillar.branch, currentLuckCycle.branch)) score += 0.75
-    if (hasPair(branchClashes, dayPillar.branch, currentLuckCycle.branch)) score -= 1
+    if (hasPair(branchCombinations, dayPillar.branch, currentLuckCycle.branch)) add('luck-support', 'วันนี้เข้ากับถนนชีวิต 10 ปี', 'วันจรพบคู่สัมพันธ์ที่ส่งเสริมกับช่วงชีวิตที่นำมาคำนวณ', 0.75)
+    if (hasPair(branchClashes, dayPillar.branch, currentLuckCycle.branch)) add('luck-clash', 'วันนี้ขัดกับถนนชีวิต 10 ปี', 'วันจรพบคู่สัมพันธ์ที่ขัดกับช่วงชีวิตที่นำมาคำนวณ', -1)
   }
+  const bounded = Math.max(-5, Math.min(5, score))
+  if (bounded !== score) add('score-bound', 'การจำกัดช่วงคะแนน', 'สูตรจำกัดคะแนนรายด้านไว้ที่ 0–100 จึงปรับยอดส่วนที่เกินขอบเขต ไม่ใช่ปัจจัยดวงเพิ่มเติม', bounded - score, true)
   score = Math.max(-5, Math.min(5, score))
   const level = levelFromScore(score)
   const hasClash = interactions.some((item) => item.type === 'clash')
@@ -214,6 +265,11 @@ function buildDayReading({ year, month, day, chart, assessment, input, focus, cu
     weekday: mondayFirstWeekday(year, month, day),
     isToday: dateKey(year, month, day) === todayKey,
     score: Math.round(score * 10) / 10,
+    personalScore: personalDayScore(score),
+    scoreFactors: factors,
+    scoreExplanation: explainScore(factors, personalDayScore(score)),
+    dailyBalance: buildDailyBalance({ assessment, dayElements: [dayPillar.element, dayPillar.branchElement], personalScore: personalDayScore(score) }),
+    stars: personalStars(chart.dayMaster.char, dayPillar.branch, { yearBranch: chart.pillars.year?.branch }),
     level,
     focus,
     focusLabel: profile.label,
@@ -269,16 +325,19 @@ function buildOverviewDay(args) {
 
   return {
     ...topicReadings[0],
+    focus: 'all',
+    focusLabel: 'ภาพรวมทุกเรื่อง',
     score: Math.round(score * 10) / 10,
+    personalScore: personalDayScore(score),
+    scoreExplanation: explainScore(topicReadings.flatMap(topic => topic.scoreFactors.map(factor => ({ ...factor, delta: factor.delta / topicReadings.length }))), personalDayScore(score), true),
+    dailyBalance: buildDailyBalance({ assessment: args.assessment, dayElements: [transit.pillars.day.element, transit.pillars.day.branchElement], personalScore: personalDayScore(score) }),
     level,
     tag,
     headline: tag,
     summary,
     dailyAdvice,
     confidence: topicReadings.some((item) => item.confidence === 'ค่อนข้างชัด') ? 'ค่อนข้างชัด' : 'ปานกลาง',
-    topicReadings: topicReadings.map(({ focus, focusLabel, level: topicLevel, status, tag: topicTag }) => ({
-      focus, focusLabel, level: topicLevel, status, tag: topicTag
-    }))
+    topicReadings
   }
 }
 

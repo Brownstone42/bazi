@@ -6,7 +6,11 @@ async function callLineSession({ idToken, payload = {}, fetchImpl = fetch }) {
     body: JSON.stringify({ idToken, ...payload })
   })
   const responsePayload = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(responsePayload.error || 'ไม่สามารถเชื่อมบัญชีผู้ใช้ได้')
+  if (!response.ok) {
+    const error = new Error(responsePayload.error || 'ไม่สามารถเชื่อมบัญชีผู้ใช้ได้')
+    error.nextEditAt = responsePayload.nextEditAt ?? null
+    throw error
+  }
   return responsePayload
 }
 
@@ -14,10 +18,10 @@ export function syncLineAccount({ idToken, birthProfile, fetchImpl = fetch }) {
   return callLineSession({ idToken, payload: { action: 'sync', ...(birthProfile ? { birthProfile } : {}) }, fetchImpl })
 }
 
-export function reserveComparison({ idToken, comparisonProfile, fetchImpl = fetch }) {
+export function reserveComparison({ idToken, comparisonProfile, profileVersion, fetchImpl = fetch }) {
   return callLineSession({
     idToken,
-    payload: { action: 'reserveComparison', comparisonProfile },
+    payload: { action: 'reserveComparison', comparisonProfile, profileVersion },
     fetchImpl
   })
 }

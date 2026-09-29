@@ -180,6 +180,7 @@ function refreshCalendarClock() { calendarNow.value = new Date() }
 const pricingNotice = ref('')
 const selectedBillingCycle = ref('monthly')
 const selectedBillingProduct = ref(null)
+const renewalCanceled = ref(false)
 const comparisonIncludedUsed = ref(0)
 const purchasedComparisonCredits = ref(previewPlan === 'comparison' ? 5 : 0)
 const calendarFocus = ref('all')
@@ -470,7 +471,10 @@ function choosePlan(planId, cycle = selectedBillingCycle.value) {
   pricingNotice.value = `เลือก ${plan.label}${period} แล้ว — ดูส่วนชำระเงินทดสอบด้านล่าง`
 }
 
-async function refreshBillingAccount() {
+async function refreshBillingAccount(billingStatus) {
+  const subscriptions = billingStatus?.subscriptions ?? []
+  renewalCanceled.value = subscriptions.some(sub => sub.cancelAtPeriodEnd && ['active', 'trialing', 'past_due', 'unpaid'].includes(sub.status))
+    && !subscriptions.some(sub => sub.status === 'active' && !sub.cancelAtPeriodEnd)
   if (!lineSession.idToken) return
   try {
     const account = await syncLineAccount({ idToken: lineSession.idToken })
@@ -810,6 +814,7 @@ if (isBlindTestMode) {
       :plan-id="accessPlan"
       :billing-cycle="billingCycle"
       :expires-at="premiumExpiresAt"
+      :renewal-canceled="renewalCanceled"
       :included-used="comparisonIncludedUsed"
       :purchased-credits="purchasedComparisonCredits"
       :local="lineSession.status === 'local'"

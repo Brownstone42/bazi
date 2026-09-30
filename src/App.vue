@@ -1096,6 +1096,7 @@ if (isBlindTestMode) {
         <div class="saved-comparisons-heading">
           <div><span>รายการที่เคยดู</span><strong>เปิดดูซ้ำได้โดยไม่หักสิทธิ์เพิ่ม</strong></div>
           <small>{{ savedComparisons.length }} รายการ</small>
+          <Button v-if="activeComparisonReport && comparisonResult" class="comparison-deselect" label="ยกเลิกการเลือก" icon="pi pi-times" severity="secondary" outlined type="button" @click="newComparisonPerson" />
         </div>
         <div class="saved-comparisons-list">
           <button
@@ -1103,6 +1104,7 @@ if (isBlindTestMode) {
             :key="report.id"
             type="button"
             :class="{ pending: !report.result }"
+            :aria-pressed="activeComparisonReport?.id === report.id"
             @click="openSavedComparison(report)"
           >
             <span class="saved-comparison-icon"><i class="pi pi-users" /></span>
@@ -1130,7 +1132,7 @@ if (isBlindTestMode) {
       <div v-if="comparisonError" class="comparison-error" role="alert"><i class="pi pi-exclamation-circle" />{{ comparisonError }}</div>
       <p v-if="comparisonSaveNotice" class="comparison-save-success" role="status"><i class="pi pi-check-circle" /> {{ comparisonSaveNotice }}</p>
 
-      <form v-if="!selectedComparisonPerson" class="comparison-form" @submit.prevent="submitComparison">
+      <form v-if="!selectedComparisonPerson && !(activeComparisonReport && comparisonResult)" class="comparison-form" @submit.prevent="submitComparison">
         <div class="comparison-form-heading">
           <span class="step">01</span>
           <div><h3>ข้อมูลของอีกฝ่าย</h3><p>เวลาเกิดเว้นว่างได้หากไม่ทราบ</p></div>

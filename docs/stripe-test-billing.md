@@ -41,7 +41,7 @@ Implemented: server-priced card Checkout, monthly/yearly recurring products, one
 - Test first monthly/yearly payment, renewal, failed renewal, cancel-at-end, duplicate and out-of-order webhooks, webhook retry after DB outage, expired sessions and repeated purchase clicks.
 - Verify mobile LINE browser -> hosted Checkout -> return login/session continuity.
 - Verify credits purchase and quota-first spending with an actual test account.
-- Complete server-side comparison result enforcement. Comparison calculation still runs client-side; calendar now uses the protected server endpoint described below.
+- Verify authenticated LINE flows for the server-owned calendar and comparison readings described below.
 - Review refund/dispute policy, customer support details, recurring billing consent and merchant approval.
 - Review entitlement expiry/month-reset concurrency and add transactional account refresh before live launch.
 - A separate reviewed live-mode change is required; the current code intentionally rejects sk_live keys and live events.
@@ -68,3 +68,11 @@ Runner: `node --env-file=.env.billing-test.local scripts/test-billing-sandbox.mj
 - Production uses the endpoint without a local-calculation fallback. Localhost development preview retains the local calculator; Vite removes that branch from production.
 - Netlify includes the chart engine and its two runtime dependencies explicitly (pinned to the existing resolved versions). Prefer the Git-connected Linux build for deployment: Windows PNPM-generated archives can retain absolute junction targets even alongside included files. A successful local packaging run alone is not a deployed runtime check.
 - Automated verification: 182 tests passed, including real calendar calculations with mocked identity/database transport, malformed requests, owner scoping, expiry, range boundaries and Bangkok midnight. Production build and direct Node server import passed. An authenticated deployed LINE check remains required; these tests do not claim browser end-to-end verification.
+
+## Server-owned comparisons — 2026-09-30
+
+- The existing `reserveComparison` action now generates and stores the result itself after the existing atomic quota RPC authorizes the report. Owner birth data comes from the database; returned report ownership and profile version are checked. The existing database trigger prevents writing a reading if the owner profile changes concurrently.
+- The response includes all five topic readings, so selecting a topic is local presentation and does not make another request or deduct quota. Production no longer includes the comparison calculation module; localhost development preview retains it.
+- Existing server-generated results are reused. Incomplete or legacy results on the current profile are generated against their existing reservation, without a second deduction. Historical reports marked stale remain readable and are not recalculated automatically.
+- `saveComparisonResult` is retired with HTTP 410; browsers cannot submit or overwrite a calculated result. The reserve action rejects extra top-level identity, result and membership fields.
+- No SQL migration or new secret is required. Automated suite: 202 tests passed; new tests use real calculation code with mocked database/RPC transport. The quota RPC and its transaction logic are unchanged; the new unit tests do not claim a new real-database concurrency test or authenticated LINE browser test.

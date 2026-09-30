@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { birthProfileToForm, reserveComparison, saveComparisonResult, syncLineAccount } from './account-api'
+import { birthProfileToForm, reserveComparison, syncLineAccount } from './account-api'
 
 describe('account API', () => {
   it('sends the LINE ID token rather than trusting client profile data', async () => {
@@ -23,12 +23,10 @@ describe('account API', () => {
     })
   })
 
-  it('saves a generated result against its reserved report', async () => {
-    const fetchImpl = vi.fn(async () => ({ ok: true, json: async () => ({ report: { id: 'report-1' } }) }))
-    await saveComparisonResult({ idToken: 'line-token', reportId: 'report-1', result: { headline: 'เข้ากันได้ดี' }, fetchImpl })
-    expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual({
-      idToken: 'line-token', action: 'saveComparisonResult', reportId: 'report-1', result: { headline: 'เข้ากันได้ดี' }
-    })
+  it('never sends client-generated results or membership as part of a comparison request', async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: true, json: async () => ({ allowed: true }) }))
+    await reserveComparison({ idToken: 'token', profileVersion: 1, comparisonProfile: {}, result: { score: 100 }, planId: 'premium', fetchImpl })
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual({ idToken: 'token', action: 'reserveComparison', profileVersion: 1, comparisonProfile: {} })
   })
 
   it('converts the stored ISO birth profile back to the Thai date input format', () => {

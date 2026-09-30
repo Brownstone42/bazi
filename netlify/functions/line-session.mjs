@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto'
+import { buildComparisonReading } from '../../src/services/comparison-reading.js'
+import { calculateChart, calculateChartWithOptionalTime } from '../../src/services/bazi.js'
 
-const jsonHeaders = { 'content-type': 'application/json; charset=utf-8' }
+const jsonHeaders = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'private, no-store', 'Netlify-CDN-Cache-Control': 'no-store' }
 const relationships = new Set(['unspecified', 'interest', 'partner', 'spouse', 'parent', 'child', 'sibling', 'friend', 'boss', 'colleague', 'subordinate', 'business_partner', 'client'])
 const focuses = new Set(['love', 'family', 'work', 'friendship', 'overview'])
 
@@ -183,9 +185,16 @@ export function reportPayload(report, currentVersion) {
   }
 }
 
-async function reserveComparison(rest, userId, rawProfile, expectedVersion) {
+export async function reserveComparison(rest, userId, rawProfile, expectedVersion) {
   if (!Number.isInteger(expectedVersion) || expectedVersion < 1) throw new Error('Invalid profile version')
   const profile = normalizeComparisonProfile(rawProfile)
+  const [owner] = await rest(`birth_profiles?user_id=eq.${encodeURIComponent(userId)}&select=*&limit=1`)
+  if (!owner || owner.profile_version !== expectedVersion) throw new Error('profile_version_changed')
+  const toInput = row => ({ birthDate: row.birth_date, birthTime: row.birth_time?.slice(0, 5) || '', gender: row.gender, timezoneId: row.timezone_id,
+    relationship: row.relationship, focus: row.focus })
+  // Validate dates before reserving a credit. All actual readings use stored owner data.
+  calculateChartWithOptionalTime(toInput(profile))
+  calculateChart(toInput(owner))
   const [reservation] = await rest('rpc/reserve_comparison_report_v2', {
     method: 'POST',
     body: {
@@ -202,9 +211,21 @@ async function reserveComparison(rest, userId, rawProfile, expectedVersion) {
     }
   })
   const allowed = Boolean(reservation?.report_id)
-  const savedReport = allowed
+  let savedReport = allowed
     ? (await rest(`comparison_reports?id=eq.${encodeURIComponent(reservation.report_id)}&user_id=eq.${encodeURIComponent(userId)}&select=*`))[0]
     : null
+  if (allowed) {
+    if (!savedReport) throw new Error('Comparison report not found')
+    if (savedReport.owner_profile_version !== expectedVersion) throw new Error('profile_version_changed')
+    if (savedReport.result_json?.readingVersion !== 'server-v1' || !savedReport.result_json?.topicResults) {
+      const result = buildComparisonReading(toInput(owner), toInput(savedReport))
+      const [updated] = await rest(`comparison_reports?id=eq.${encodeURIComponent(savedReport.id)}&user_id=eq.${encodeURIComponent(userId)}&owner_profile_version=eq.${expectedVersion}&select=*`, {
+        method: 'PATCH', body: { result_json: result, updated_at: new Date().toISOString() }, prefer: 'return=representation'
+      })
+      if (!updated) throw new Error('Comparison report not found')
+      savedReport = updated
+    }
+  }
   return {
     allowed,
     existing: allowed && reservation.is_existing,
@@ -228,25 +249,6 @@ async function reserveComparison(rest, userId, rawProfile, expectedVersion) {
   }
 }
 
-async function saveComparisonResult(rest, userId, reportId, result) {
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(reportId ?? '')) {
-    throw new Error('Invalid comparison report')
-  }
-  if (!result || Array.isArray(result) || typeof result !== 'object') throw new Error('Invalid comparison result')
-  const serialized = JSON.stringify(result)
-  if (serialized.length > 30000) throw new Error('Comparison result is too large')
-  const reports = await rest(
-    `comparison_reports?id=eq.${encodeURIComponent(reportId)}&user_id=eq.${encodeURIComponent(userId)}&select=*`,
-    {
-      method: 'PATCH',
-      body: { result_json: result, updated_at: new Date().toISOString() },
-      prefer: 'return=representation'
-    }
-  )
-  if (!reports?.[0]) throw new Error('Comparison report not found')
-  return reportPayload(reports[0])
-}
-
 export default async (request) => {
   if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405)
 
@@ -254,6 +256,10 @@ export default async (request) => {
     const config = requiredEnvironment()
     const body = await request.json()
     const lineProfile = await verifyLineIdToken(body.idToken, config.channelId)
+    if (body.action === 'saveComparisonResult') return jsonResponse({ error: 'กรุณาเปิดแอปใหม่เพื่อใช้ระบบเปรียบเทียบเวอร์ชันล่าสุด' }, 410)
+    if (body.action === 'reserveComparison' && Object.keys(body).some(key => !['idToken', 'action', 'comparisonProfile', 'profileVersion'].includes(key))) {
+      return jsonResponse({ error: 'คำขอเปรียบเทียบไม่ถูกต้อง' }, 400)
+    }
     const rest = createSupabaseRest(config)
     const now = new Date().toISOString()
     const [user] = await rest('app_users?on_conflict=line_user_id&select=id,display_name,picture_url', {
@@ -276,10 +282,6 @@ export default async (request) => {
 
     if (body.action === 'reserveComparison') {
       return jsonResponse(await reserveComparison(rest, user.id, body.comparisonProfile, body.profileVersion))
-    }
-
-    if (body.action === 'saveComparisonResult') {
-      return jsonResponse({ report: await saveComparisonResult(rest, user.id, body.reportId, body.result) })
     }
 
     if (body.action && body.action !== 'sync') return jsonResponse({ error: 'ไม่รู้จักคำสั่งที่ส่งมา' }, 400)

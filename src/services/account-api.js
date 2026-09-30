@@ -26,14 +26,6 @@ export function reserveComparison({ idToken, comparisonProfile, profileVersion, 
   })
 }
 
-export function saveComparisonResult({ idToken, reportId, result, fetchImpl = fetch }) {
-  return callLineSession({
-    idToken,
-    payload: { action: 'saveComparisonResult', reportId, result },
-    fetchImpl
-  })
-}
-
 export function birthProfileToForm(profile) {
   if (!profile?.birth_date) return null
   const [year, month, day] = profile.birth_date.split('-')

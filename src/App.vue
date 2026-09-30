@@ -19,7 +19,6 @@ import { interpretNatalChart } from './services/interpretation'
 import { assessDayMasterStrength } from './services/strength-engine'
 import { createBlindTest, evaluateBlindTest } from './services/blind-test'
 import { buildLuckPillarTimeline, interpretLuckPillar } from './services/luck-pillars'
-import { interpretCompatibility } from './services/compatibility'
 import { pickerDateToTimeString, timeStringToPickerDate } from './services/time-input'
 import { calendarFocusOptions, shiftCalendarMonth } from './services/calendar-options'
 import { fetchPersonalCalendar } from './services/calendar-api'
@@ -32,14 +31,12 @@ import {
   calendarPlanForSession,
   canAccessCalendarDay,
   comparisonBalance,
-  consumeComparison
 } from './services/access-control'
 import { initializeLineSession } from './services/liff-auth'
 import { loadLocalBirthProfile, saveLocalBirthProfile, mockUser } from './services/local-account'
 import {
   birthProfileToForm,
   reserveComparison,
-  saveComparisonResult,
   syncLineAccount
 } from './services/account-api'
 
@@ -139,26 +136,21 @@ const selectedLuckCycleIndex = ref(null)
 const comparisonResult = ref(null)
 const comparisonError = ref('')
 const comparisonSubmitting = ref(false)
+const localComparisonReader = ref(null)
 const comparisonTopics = computed(() => {
-  if (!comparisonResult.value || !chart.value || activeComparisonReport.value?.isStale) return []
-  const { chart: otherChart, hasBirthTime } = calculateChartWithOptionalTime(comparisonForm)
-  return comparisonFocusOptions.map(topic => ({
-    ...topic,
-    result: interpretCompatibility(chart.value, otherChart, {
-      relationship: 'unspecified', focus: topic.value, hasBirthTime
-    })
-  }))
+  if (!comparisonResult.value || activeComparisonReport.value?.isStale) return []
+  return comparisonFocusOptions.map(topic => ({ ...topic, result: comparisonResult.value.topicResults?.[topic.value] })).filter(topic => topic.result)
 })
 
 const comparisonOverviewScore = computed(() => activeComparisonReport.value?.isStale
   ? comparisonResult.value?.score ?? null
   : comparisonResult.value?.score
-  ? comparisonTopics.value.find(topic => topic.value === 'overview')?.result.score
+  ? comparisonTopics.value.find(topic => topic.value === 'overview')?.result.score ?? comparisonResult.value.score
   : null)
 
 function selectComparisonTopic(topic) {
   comparisonForm.focus = topic.value
-  comparisonResult.value = topic.result
+  comparisonResult.value = { ...topic.result, topicResults: comparisonResult.value.topicResults }
 }
 const savedComparisons = ref([])
 const comparisonPeople = ref([])
@@ -341,8 +333,17 @@ function upsertSavedComparison(report) {
 
 function buildPersonOverview(person) {
   if (!chart.value) return null
-  const { chart: otherChart, hasBirthTime } = calculateChartWithOptionalTime(person)
-  return interpretCompatibility(chart.value, otherChart, { relationship: 'unspecified', focus: 'overview', hasBirthTime })
+  if (import.meta.env.DEV && calendarPlan.value.localPreview && localComparisonReader.value) {
+    return localComparisonReader.value(calculatedInput.value, { ...person, relationship: 'unspecified', focus: 'overview' })
+  }
+  return savedReportForPerson(person)?.result ?? null
+}
+
+function savedReportForPerson(person) {
+  const dateKey = value => String(value).replace(/^(\d{2})\/(\d{2})\/(\d{4})$/, '$3-$2-$1')
+  return savedComparisons.value.find(report => !report.isStale && report.ownerProfileVersion === profileVersion.value &&
+    dateKey(report.birthDate) === dateKey(person.birthDate) && (report.birthTime || '').slice(0, 5) === (person.birthTime || '').slice(0, 5) &&
+    report.gender === person.gender && report.timezoneId === person.timezoneId && report.relationship === 'unspecified' && report.focus === 'overview')
 }
 
 async function selectComparisonPerson(person) {
@@ -355,6 +356,7 @@ async function selectComparisonPerson(person) {
   await nextTick()
   if (selectedComparisonPerson.value !== person.id) return
   try {
+    activeComparisonReport.value = savedReportForPerson(person) ?? null
     comparisonResult.value = buildPersonOverview(person)
   } catch (cause) {
     comparisonError.value = cause instanceof Error ? cause.message : 'ไม่สามารถอ่านข้อมูลของคนนี้ได้'
@@ -372,6 +374,7 @@ function saveComparisonPersonFromForm() {
     selectedComparisonPerson.value = saved.person.id
     comparisonSaveNotice.value = 'บันทึกข้อมูลคนนี้ในเบราว์เซอร์แล้ว'
     comparisonForm.focus = 'overview'
+    activeComparisonReport.value = savedReportForPerson(saved.person) ?? null
     comparisonResult.value = buildPersonOverview(saved.person)
     return true
   } catch (cause) {
@@ -411,6 +414,23 @@ async function openSavedComparison(report) {
   activeComparisonReport.value = report
   comparisonResult.value = report.result
   comparisonError.value = report.result ? '' : 'รายการนี้ยังสร้างคำอ่านไม่เสร็จ กรุณากดดูคำแนะนำอีกครั้ง'
+  if (lineSession.idToken && !report.isStale && report.ownerProfileVersion === profileVersion.value && !report.result?.topicResults) {
+    const requested = { ...comparisonForm }
+    try {
+      const response = await reserveComparison({ idToken: lineSession.idToken, profileVersion: profileVersion.value, comparisonProfile: requested })
+      if (response.allowed && response.report?.result) {
+        upsertSavedComparison(response.report)
+        applyEntitlement(response.entitlement)
+        if (activeComparisonReport.value?.id === report.id && JSON.stringify(comparisonForm) === JSON.stringify(requested)) {
+          activeComparisonReport.value = response.report
+          comparisonResult.value = response.report.result
+          comparisonError.value = ''
+        }
+      }
+    } catch {
+      if (activeComparisonReport.value?.id === report.id) comparisonError.value = 'โหลดคำอ่านครบทุกด้านไม่ได้ กรุณาเปิดรายการนี้ใหม่อีกครั้ง รายงานเดิมยังอยู่'
+    }
+  }
 }
 
 async function saveBirthProfile(input) {
@@ -578,6 +598,9 @@ async function connectLineAccount() {
     const session = await initializeLineSession({ liffId })
     Object.assign(lineSession, session)
     if (session.status === 'local') {
+      if (import.meta.env.DEV && calendarPlan.value.localPreview) {
+        localComparisonReader.value = (await import('./services/comparison-reading.js')).buildComparisonReading
+      }
       lineSession.profile = { ...mockUser }
       comparisonPeople.value = loadComparisonPeople(window.localStorage)
       if (comparisonPeople.value.length) selectComparisonPerson(comparisonPeople.value[0])
@@ -617,6 +640,7 @@ async function connectLineAccount() {
 }
 
 async function submitComparison() {
+  if (comparisonSubmitting.value) return
   activeComparisonReport.value = null
   comparisonError.value = ''
   comparisonResult.value = null
@@ -626,58 +650,35 @@ async function submitComparison() {
     if (!chart.value) throw new Error('กรุณาคำนวณพื้นดวงของคุณก่อน')
     comparisonForm.relationship = 'unspecified'
     comparisonForm.focus = 'overview'
-    const { chart: otherChart, hasBirthTime } = calculateChartWithOptionalTime(comparisonForm)
-    const generatedResult = interpretCompatibility(chart.value, otherChart, {
-      relationship: comparisonForm.relationship,
-      focus: comparisonForm.focus,
-      hasBirthTime
-    })
+    calculateChartWithOptionalTime(comparisonForm)
+    const requestedProfile = { ...comparisonForm }
+    const requestedVersion = profileVersion.value
 
     if (lineSession.idToken) {
       const reservation = await reserveComparison({
         idToken: lineSession.idToken,
-        profileVersion: profileVersion.value,
-        comparisonProfile: { ...comparisonForm }
+        profileVersion: requestedVersion,
+        comparisonProfile: requestedProfile
       })
       applyEntitlement(reservation.entitlement)
+      if (profileVersion.value !== requestedVersion || JSON.stringify(comparisonForm) !== JSON.stringify(requestedProfile)) return
       if (!reservation.allowed) {
         openPricing('ใช้สิทธิ์เปรียบเทียบบุคคลครบแล้ว สามารถซื้อสิทธิ์เพิ่ม 5 คนในราคา 59 บาทและเก็บไว้ใช้ได้โดยไม่หมดอายุ')
         return
       }
-      if (reservation.existing && reservation.report.result) {
-        upsertSavedComparison(reservation.report)
-        await openSavedComparison(reservation.report)
-        return
-      }
-      comparisonResult.value = generatedResult
-      const saved = await saveComparisonResult({
-        idToken: lineSession.idToken,
-        reportId: reservation.report.id,
-        result: generatedResult
-      })
-      upsertSavedComparison(saved.report)
+      if (!reservation.report?.result) throw new Error('ยังสร้างคำอ่านไม่สำเร็จ กรุณาลองใหม่ ระบบจะไม่ตัดสิทธิ์ซ้ำสำหรับรายการเดิม')
+      upsertSavedComparison(reservation.report)
+      await openSavedComparison(reservation.report)
       return
     }
 
-    if (lineSession.status === 'local') {
+    if (import.meta.env.DEV && calendarPlan.value.localPreview && localComparisonReader.value) {
       if (!saveComparisonPersonFromForm()) return
-      comparisonResult.value = generatedResult
+      comparisonResult.value = localComparisonReader.value(calculatedInput.value, requestedProfile)
       return
     }
 
-    const quotaUse = consumeComparison({
-      planId: accessPlan.value,
-      billingCycle: billingCycle.value,
-      includedUsed: comparisonIncludedUsed.value,
-      purchasedCredits: purchasedComparisonCredits.value
-    })
-    if (!quotaUse) {
-      openPricing('ใช้สิทธิ์เปรียบเทียบบุคคลครบแล้ว สามารถซื้อสิทธิ์เพิ่ม 5 คนในราคา 59 บาทและเก็บไว้ใช้ได้โดยไม่หมดอายุ')
-      return
-    }
-    comparisonResult.value = generatedResult
-    comparisonIncludedUsed.value = quotaUse.includedUsed
-    purchasedComparisonCredits.value = quotaUse.purchasedCredits
+    throw new Error('กรุณาเข้าสู่ระบบ LINE ก่อนเปรียบเทียบ')
   } catch (cause) {
     comparisonError.value = cause instanceof Error ? cause.message : 'ไม่สามารถเปรียบเทียบความสัมพันธ์ได้'
   } finally {

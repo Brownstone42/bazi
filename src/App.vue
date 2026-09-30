@@ -21,7 +21,8 @@ import { createBlindTest, evaluateBlindTest } from './services/blind-test'
 import { buildLuckPillarTimeline, interpretLuckPillar } from './services/luck-pillars'
 import { interpretCompatibility } from './services/compatibility'
 import { pickerDateToTimeString, timeStringToPickerDate } from './services/time-input'
-import { buildPersonalMonth, calendarFocusOptions, shiftCalendarMonth } from './services/personal-calendar'
+import { calendarFocusOptions, shiftCalendarMonth } from './services/calendar-options'
+import { fetchPersonalCalendar } from './services/calendar-api'
 import {
   accessPlans,
   calendarHorizon,
@@ -175,6 +176,12 @@ const accessPlan = ref(previewPlan === 'premium' ? 'premium' : 'free')
 const billingCycle = ref('monthly')
 const premiumExpiresAt = ref(null)
 const calendarNow = ref(new Date())
+const serverCalendar = ref(null)
+const localCalendar = ref(null)
+const calendarLoading = ref(false)
+const calendarError = ref('')
+let calendarRequestController
+let calendarRequestVersion = 0
 let calendarClock
 function refreshCalendarClock() { calendarNow.value = new Date() }
 const pricingNotice = ref('')
@@ -219,13 +226,13 @@ const selectedLuckReading = computed(() => chart.value && strength.value && sele
 const selectedLuckPosition = computed(() => luckTimeline.value?.cycles.findIndex((cycle) => cycle.index === selectedLuckCycle.value?.index) ?? -1)
 const canMoveLuckPrevious = computed(() => selectedLuckPosition.value > 0)
 const canMoveLuckNext = computed(() => selectedLuckPosition.value >= 0 && selectedLuckPosition.value < (luckTimeline.value?.cycles.length ?? 0) - 1)
-const calendarPlan = computed(() => calendarPlanForSession({ planId: accessPlan.value, billingCycle: billingCycle.value, premiumExpiresAt: premiumExpiresAt.value }, {
+const calendarPlan = computed(() => calendarPlanForSession(serverCalendar.value?.plan ?? { planId: accessPlan.value, billingCycle: billingCycle.value, premiumExpiresAt: premiumExpiresAt.value }, {
   development: import.meta.env.DEV, hostname: window.location.hostname, status: lineSession.status
 }))
 const calendarDaysAhead = computed(() => calendarHorizon(calendarPlan.value, calendarNow.value))
 const isPremium = computed(() => calendarDaysAhead.value > 0)
-function calendarDayAllowed(day) { return canAccessCalendarDay(day, calendarPlan.value, calendarNow.value) }
-function calendarDayState(day) { return calendarDayAccess(day, calendarPlan.value, calendarNow.value) }
+function calendarDayAllowed(day) { return calendarPlan.value.localPreview ? canAccessCalendarDay(day, calendarPlan.value, calendarNow.value) : day?.access === 'available' }
+function calendarDayState(day) { return calendarPlan.value.localPreview ? calendarDayAccess(day, calendarPlan.value, calendarNow.value) : day?.access ?? 'unavailable' }
 const comparisonQuota = computed(() => comparisonBalance({
   planId: accessPlan.value,
   billingCycle: billingCycle.value,
@@ -234,23 +241,43 @@ const comparisonQuota = computed(() => comparisonBalance({
 }))
 const calendarPreviousAccess = computed(() => calendarMonthAccess(calendarCursor.year, calendarCursor.month - 1, calendarPlan.value, calendarNow.value))
 const calendarNextAccess = computed(() => calendarMonthAccess(calendarCursor.year, calendarCursor.month + 1, calendarPlan.value, calendarNow.value))
-const personalMonth = computed(() => chart.value && strength.value && calculatedInput.value
-  ? buildPersonalMonth({
-      chart: chart.value,
-      assessment: strength.value,
-      input: calculatedInput.value,
-      year: calendarCursor.year,
-      month: calendarCursor.month,
-      focus: calendarFocus.value,
-      now: calendarNow.value,
-      currentLuckCycle: luckTimeline.value?.cycles.find((cycle) => cycle.isCurrent) ?? null
-    })
-  : null)
+const personalMonth = computed(() => calendarPlan.value.localPreview ? localCalendar.value : serverCalendar.value?.month ?? null)
+async function loadCalendar() {
+  const version = ++calendarRequestVersion
+  calendarRequestController?.abort()
+  calendarRequestController = new AbortController()
+  serverCalendar.value = null
+  localCalendar.value = null
+  calendarLoading.value = false
+  calendarError.value = ''
+  if (activeView.value !== 'calendar' || editingBirthProfile.value || !accountReady.value || !calculatedInput.value) return
+  calendarLoading.value = true
+  try {
+    // Vite removes this entire branch and its calculation module in production.
+    if (import.meta.env.DEV && calendarPlan.value.localPreview) {
+      const { buildPersonalMonth } = await import('./services/personal-calendar.js')
+      if (version !== calendarRequestVersion) return
+      localCalendar.value = buildPersonalMonth({ chart: chart.value, assessment: strength.value, input: calculatedInput.value,
+        year: calendarCursor.year, month: calendarCursor.month, focus: calendarFocus.value, now: calendarNow.value,
+        currentLuckCycle: luckTimeline.value?.cycles.find(cycle => cycle.isCurrent) ?? null, displayTimezoneId: 'Asia/Bangkok' })
+    } else {
+      const result = await fetchPersonalCalendar({ idToken: lineSession.idToken, year: calendarCursor.year, month: calendarCursor.month,
+        focus: calendarFocus.value, signal: calendarRequestController.signal })
+      if (version !== calendarRequestVersion) return
+      if (profileVersion.value != null && result.profileVersion !== profileVersion.value) throw new Error('ข้อมูลเกิดมีการเปลี่ยนแปลง กรุณาเปิดแอปใหม่เพื่อโหลดข้อมูลล่าสุด')
+      serverCalendar.value = result
+    }
+  } catch (cause) {
+    if (version === calendarRequestVersion && cause.name !== 'AbortError') calendarError.value = cause.message || 'โหลดปฏิทินไม่ได้ กรุณาลองใหม่'
+  } finally {
+    if (version === calendarRequestVersion) calendarLoading.value = false
+  }
+}
 const selectedCalendarDay = computed(() => {
   const days = personalMonth.value?.days ?? []
-  return days.find((day) => day.key === selectedCalendarDayKey.value) ??
-    days.find((day) => day.isToday) ??
-    days[0] ??
+  return days.find((day) => day.key === selectedCalendarDayKey.value && calendarDayAllowed(day)) ??
+    days.find((day) => day.isToday && calendarDayAllowed(day)) ??
+    days.find(calendarDayAllowed) ??
     null
 })
 const lineAccountSubtitle = computed(() => {
@@ -696,6 +723,11 @@ watch(calendarFocus, () => {
   selectedCalendarDayKey.value = null
 })
 
+watch(() => [activeView.value, editingBirthProfile.value, accountReady.value, lineSession.idToken, lineSession.status,
+  profileVersion.value, calculatedInput.value, calendarCursor.year, calendarCursor.month, calendarFocus.value,
+  accessPlan.value, billingCycle.value, premiumExpiresAt.value, calendarNow.value.toISOString().slice(0, 16),
+  Boolean(premiumExpiresAt.value && new Date(premiumExpiresAt.value) <= calendarNow.value)], loadCalendar, { immediate: true })
+
 onMounted(() => {
   calendarClock = window.setInterval(refreshCalendarClock, 30000)
   window.addEventListener('focus', refreshCalendarClock)
@@ -705,6 +737,8 @@ onMounted(() => {
   connectLineAccount()
 })
 onBeforeUnmount(() => {
+  calendarRequestVersion++
+  calendarRequestController?.abort()
   window.clearInterval(calendarClock)
   window.removeEventListener('focus', refreshCalendarClock)
   window.removeEventListener('hashchange', syncViewFromHash)
@@ -1239,6 +1273,14 @@ if (isBlindTestMode) {
       <p class="pricing-footnote">Stripe อยู่ในโหมดทดสอบ ยังไม่เปิดรับเงินจริง</p>
     </section>
 
+    <section v-if="!personalMonth && !isBlindTestMode && activeView === 'calendar' && !editingBirthProfile" class="calendar-section" aria-live="polite">
+      <h2>ปฏิทินของคุณ</h2>
+      <p v-if="calendarLoading">กำลังโหลดปฏิทินและตรวจสอบสิทธิ์…</p>
+      <template v-else-if="calendarError">
+        <p role="alert">{{ calendarError }}</p>
+        <Button label="ลองใหม่" icon="pi pi-refresh" @click="loadCalendar" />
+      </template>
+    </section>
     <section v-if="personalMonth && !isBlindTestMode && activeView === 'calendar'" class="calendar-section">
       <div class="view-profile-summary">
         <div>

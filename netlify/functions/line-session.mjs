@@ -119,19 +119,19 @@ export function comparisonFingerprint(profile) {
   return createHash('sha256').update(identity).digest('hex')
 }
 
-function firstDayOfCurrentMonth() {
+function firstDayOfCurrentMonth(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en', {
     timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit'
-  }).formatToParts(new Date())
+  }).formatToParts(now)
   const year = parts.find((part) => part.type === 'year')?.value
   const month = parts.find((part) => part.type === 'month')?.value
   return `${year}-${month}-01`
 }
 
-async function readAccount(rest, userId) {
+export async function readAccount(rest, userId, now = new Date()) {
   let [entitlement] = await rest(`user_entitlements?user_id=eq.${encodeURIComponent(userId)}&select=*&limit=1`)
-  const currentPeriod = firstDayOfCurrentMonth()
-  const premiumExpired = entitlement.plan_id === 'premium' && entitlement.premium_expires_at && new Date(entitlement.premium_expires_at) <= new Date()
+  const currentPeriod = firstDayOfCurrentMonth(now)
+  const premiumExpired = entitlement.plan_id === 'premium' && entitlement.premium_expires_at && new Date(entitlement.premium_expires_at) <= now
   const shouldResetPremiumQuota = entitlement.plan_id === 'premium' && entitlement.comparison_period_start !== currentPeriod
   if (premiumExpired || shouldResetPremiumQuota) {
     const updates = {

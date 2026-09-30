@@ -5,4 +5,4 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-  included_files = ["node_modules/stripe/**"]
+  included_files = ["node_modules/stripe/**", "node_modules/@openfate/bazi-engine/**", "node_modules/@openfate/true-solar-time/**", "node_modules/lunar-javascript/**"]

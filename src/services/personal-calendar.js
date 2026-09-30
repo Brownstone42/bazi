@@ -1,6 +1,7 @@
-import { calculateChart } from './bazi'
-import { personalStars } from './personal-stars'
-import { buildDailyBalance } from './daily-balance'
+import { calculateChart } from './bazi.js'
+import { personalStars } from './personal-stars.js'
+import { buildDailyBalance } from './daily-balance.js'
+export { calendarFocusOptions, shiftCalendarMonth } from './calendar-options.js'
 
 // Display scale only; the existing -5..5 model still determines ranking.
 export function personalDayScore(score) {
@@ -16,15 +17,6 @@ const branchHarms = new Set(['子未', '丑午', '寅巳', '卯辰', '申亥', '
 const thaiMonths = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
   'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
-]
-
-export const calendarFocusOptions = [
-  { label: 'ภาพรวมทุกเรื่อง', value: 'all', icon: 'pi-sparkles' },
-  { label: 'การงาน', value: 'work', icon: 'pi-briefcase' },
-  { label: 'การเงิน', value: 'money', icon: 'pi-wallet' },
-  { label: 'ความรัก', value: 'love', icon: 'pi-heart' },
-  { label: 'การเจรจา', value: 'communication', icon: 'pi-comments' },
-  { label: 'การพักและดูแลตัวเอง', value: 'wellbeing', icon: 'pi-sun' }
 ]
 
 const focusProfiles = {
@@ -350,20 +342,26 @@ function todayInTimezone(timezoneId, now) {
   return { year: read('year'), month: read('month'), day: read('day') }
 }
 
-export function buildPersonalMonth({ chart, assessment, input, year, month, focus = 'all', currentLuckCycle = null, now = new Date() }) {
+export function buildPersonalMonth({ chart, assessment, input, year, month, focus = 'all', currentLuckCycle = null, now = new Date(), dayAccess = null, displayTimezoneId = input?.timezoneId }) {
   if (!chart || !assessment || !input) return null
   if (!elements.includes(chart.dayMaster.element)) throw new Error('ไม่สามารถอ่านธาตุประจำตัวได้')
   if (focus !== 'all' && !focusProfiles[focus]) throw new Error('หัวข้อปฏิทินไม่ถูกต้อง')
-  const today = todayInTimezone(input.timezoneId, now)
+  const today = todayInTimezone(displayTimezoneId, now)
   const todayKey = dateKey(today.year, today.month, today.day)
   const count = daysInMonth(year, month)
   const days = Array.from({ length: count }, (_, index) => {
+    const day = index + 1
+    const key = dateKey(year, month, day)
+    const access = dayAccess ? dayAccess({ key }) : 'available'
+    if (access !== 'available') return { key, day, weekday: mondayFirstWeekday(year, month, day), isToday: key === todayKey, access }
     const args = { year, month, day: index + 1, chart, assessment, input, currentLuckCycle, todayKey }
-    return focus === 'all' ? buildOverviewDay(args) : buildDayReading({ ...args, focus })
+    const reading = focus === 'all' ? buildOverviewDay(args) : buildDayReading({ ...args, focus })
+    return dayAccess ? { ...reading, access } : reading
   })
-  const ranked = [...days].sort((a, b) => b.score - a.score || a.day - b.day)
+  const readableDays = days.filter(day => Number.isFinite(day.score))
+  const ranked = [...readableDays].sort((a, b) => b.score - a.score || a.day - b.day)
   const recommended = ranked.slice(0, 3)
-  const caution = [...days].sort((a, b) => a.score - b.score || a.day - b.day).slice(0, 2)
+  const caution = [...readableDays].sort((a, b) => a.score - b.score || a.day - b.day).slice(0, 2)
   const supportiveCount = days.filter((item) => ['strong', 'supportive'].includes(item.level)).length
   const cautionCount = days.filter((item) => item.level === 'caution').length
   const focusLabel = focus === 'all' ? 'ภาพรวมทุกเรื่อง' : focusProfiles[focus].label
@@ -385,9 +383,4 @@ export function buildPersonalMonth({ chart, assessment, input, year, month, focu
         : `เดือนนี้เรื่อง${focusLabel}ต้องอาศัยการวางแผนมากกว่าการเร่งผล เลือกวันสำคัญอย่างตั้งใจและเผื่อทางเลือกเมื่อเงื่อนไขเปลี่ยน`,
     counts: { supportive: supportiveCount, caution: cautionCount }
   }
-}
-
-export function shiftCalendarMonth(year, month, amount) {
-  const shifted = new Date(Date.UTC(year, month - 1 + amount, 1))
-  return { year: shifted.getUTCFullYear(), month: shifted.getUTCMonth() + 1 }
 }

@@ -41,9 +41,30 @@ Implemented: server-priced card Checkout, monthly/yearly recurring products, one
 - Test first monthly/yearly payment, renewal, failed renewal, cancel-at-end, duplicate and out-of-order webhooks, webhook retry after DB outage, expired sessions and repeated purchase clicks.
 - Verify mobile LINE browser -> hosted Checkout -> return login/session continuity.
 - Verify credits purchase and quota-first spending with an actual test account.
-- Complete server-side protected calendar/comparison result enforcement. Currently calculation still runs client-side: UI gating is not paid-content security.
+- Complete server-side comparison result enforcement. Comparison calculation still runs client-side; calendar now uses the protected server endpoint described below.
 - Review refund/dispute policy, customer support details, recurring billing consent and merchant approval.
 - Review entitlement expiry/month-reset concurrency and add transactional account refresh before live launch.
 - A separate reviewed live-mode change is required; the current code intentionally rejects sk_live keys and live events.
 
-No Stripe account, products, keys, webhook endpoint or live deployment was created remotely in this coding session.
+## Verified Sandbox run — 2026-09-30
+
+Used a newly created monthly Sandbox customer, test clock and synthetic database user. No existing LINE user, manual simulation or subscription was changed. Fixture IDs are retained locally in ignored `.netlify/billing-test-monthly.json`; secrets stay in ignored `.env.billing-test.local`.
+
+- Initial subscription: Stripe test card paid; the deployed webhook wrote the real payment ledger and granted Premium through 2026-10-30.
+- Automatic renewal: advanced only the fixture clock; Stripe paid its renewal and the deployed webhook extended the database entitlement through 2026-11-30. No manual invoice payment or local payment grant was used.
+- Duplicate renewal processing returned `duplicate: true` from the real database RPC without granting twice. Included usage stayed at 3; the seeded 5 test credits remained 5.
+- Failed next renewal: attached `pm_card_chargeCustomerFail`; Stripe invoice became open, attempted once, amount paid 0 and subscription past_due. The real database expiry remained unchanged and no paid ledger entry existed for that invoice.
+- Expiry boundary: called the actual account reader locally with injected time and the fixture's real database rows. Before expiry Premium remained; at expiry the user became Free, credits remained 5, free-trial comparison usage stayed consumed, and birth profile / saved comparison report were identical. The public endpoint does not accept an injected clock; global app/database time was not changed.
+- Canceled the newly created test subscription at its period end and advanced its clock; Stripe status became canceled. Retained fixture records for audit; did not delete the customer or clock.
+- Automated suite: 157 tests passed. This run verifies monthly provider/webhook/database behavior plus local invocation of expiry logic; it is not a browser/LINE end-to-end test. Annual real-provider lifecycle and renewal/expiry concurrency remain separate checks before live launch.
+
+Runner: `node --env-file=.env.billing-test.local scripts/test-billing-sandbox.mjs <setup|renew|fail|verify-failure|expire|cancel> monthly`. Setup refuses to overwrite an existing fixture. Follow the steps in order; do not re-run clock-changing steps merely to inspect status. The fixture credits are synthetic test balances, not an additional real credit purchase.
+
+## Protected calendar — 2026-09-30
+
+- `POST /api/calendar` verifies the LINE ID token, resolves the owner, and reads birth profile and membership from the database. The client sends only token, year, month and focus; extra identity, profile, plan or clock fields are rejected.
+- Free receives today only (Bangkok date). Active monthly and annual memberships receive today plus 30 and 90 days respectively. Invalid or expired memberships fail closed to Free.
+- Locked dates contain only date metadata and access state, with no score, stars, reading or hidden-date aggregate. Responses are private/no-store. The endpoint performs no database writes.
+- Production uses the endpoint without a local-calculation fallback. Localhost development preview retains the local calculator; Vite removes that branch from production.
+- Netlify includes the chart engine and its two runtime dependencies explicitly (pinned to the existing resolved versions). Prefer the Git-connected Linux build for deployment: Windows PNPM-generated archives can retain absolute junction targets even alongside included files. A successful local packaging run alone is not a deployed runtime check.
+- Automated verification: 182 tests passed, including real calendar calculations with mocked identity/database transport, malformed requests, owner scoping, expiry, range boundaries and Bangkok midnight. Production build and direct Node server import passed. An authenticated deployed LINE check remains required; these tests do not claim browser end-to-end verification.

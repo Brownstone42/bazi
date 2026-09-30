@@ -23,6 +23,7 @@ import { interpretCompatibility } from './services/compatibility'
 import { pickerDateToTimeString, timeStringToPickerDate } from './services/time-input'
 import { calendarFocusOptions, shiftCalendarMonth } from './services/calendar-options'
 import { fetchPersonalCalendar } from './services/calendar-api'
+import { bangkokDay, calendarForFocus, createCalendarCache, CALENDAR_CACHE_MS } from './services/calendar-view'
 import {
   accessPlans,
   calendarHorizon,
@@ -182,6 +183,8 @@ const calendarLoading = ref(false)
 const calendarError = ref('')
 let calendarRequestController
 let calendarRequestVersion = 0
+const calendarCache = createCalendarCache()
+let displayedCalendarKey = ''
 let calendarClock
 function refreshCalendarClock() { calendarNow.value = new Date() }
 const pricingNotice = ref('')
@@ -241,16 +244,32 @@ const comparisonQuota = computed(() => comparisonBalance({
 }))
 const calendarPreviousAccess = computed(() => calendarMonthAccess(calendarCursor.year, calendarCursor.month - 1, calendarPlan.value, calendarNow.value))
 const calendarNextAccess = computed(() => calendarMonthAccess(calendarCursor.year, calendarCursor.month + 1, calendarPlan.value, calendarNow.value))
-const personalMonth = computed(() => calendarPlan.value.localPreview ? localCalendar.value : serverCalendar.value?.month ?? null)
+const personalMonth = computed(() => calendarForFocus(calendarPlan.value.localPreview ? localCalendar.value : serverCalendar.value?.month ?? null, calendarFocus.value))
 async function loadCalendar() {
   const version = ++calendarRequestVersion
   calendarRequestController?.abort()
   calendarRequestController = new AbortController()
-  serverCalendar.value = null
-  localCalendar.value = null
   calendarLoading.value = false
   calendarError.value = ''
-  if (activeView.value !== 'calendar' || editingBirthProfile.value || !accountReady.value || !calculatedInput.value) return
+  const context = JSON.stringify([lineSession.idToken, lineSession.status, profileVersion.value, calculatedInput.value,
+    accessPlan.value, billingCycle.value, premiumExpiresAt.value, bangkokDay(calendarNow.value),
+    Boolean(premiumExpiresAt.value && new Date(premiumExpiresAt.value) <= calendarNow.value)])
+  calendarCache.useContext(context)
+  if (activeView.value !== 'calendar' || editingBirthProfile.value || !accountReady.value || !calculatedInput.value) {
+    serverCalendar.value = null
+    localCalendar.value = null
+    displayedCalendarKey = ''
+    return
+  }
+  const monthKey = `${calendarCursor.year}-${calendarCursor.month}`
+  const displayKey = context + monthKey
+  if (displayedCalendarKey !== displayKey) {
+    serverCalendar.value = null
+    localCalendar.value = null
+  }
+  displayedCalendarKey = displayKey
+  const cached = calendarCache.get(monthKey)
+  if (cached && !calendarPlan.value.localPreview) { serverCalendar.value = cached; return }
   calendarLoading.value = true
   try {
     // Vite removes this entire branch and its calculation module in production.
@@ -258,17 +277,21 @@ async function loadCalendar() {
       const { buildPersonalMonth } = await import('./services/personal-calendar.js')
       if (version !== calendarRequestVersion) return
       localCalendar.value = buildPersonalMonth({ chart: chart.value, assessment: strength.value, input: calculatedInput.value,
-        year: calendarCursor.year, month: calendarCursor.month, focus: calendarFocus.value, now: calendarNow.value,
+        year: calendarCursor.year, month: calendarCursor.month, focus: 'all', now: calendarNow.value,
         currentLuckCycle: luckTimeline.value?.cycles.find(cycle => cycle.isCurrent) ?? null, displayTimezoneId: 'Asia/Bangkok' })
     } else {
       const result = await fetchPersonalCalendar({ idToken: lineSession.idToken, year: calendarCursor.year, month: calendarCursor.month,
-        focus: calendarFocus.value, signal: calendarRequestController.signal })
+        focus: 'all', signal: calendarRequestController.signal })
       if (version !== calendarRequestVersion) return
       if (profileVersion.value != null && result.profileVersion !== profileVersion.value) throw new Error('ข้อมูลเกิดมีการเปลี่ยนแปลง กรุณาเปิดแอปใหม่เพื่อโหลดข้อมูลล่าสุด')
+      calendarCache.set(monthKey, result)
       serverCalendar.value = result
     }
   } catch (cause) {
-    if (version === calendarRequestVersion && cause.name !== 'AbortError') calendarError.value = cause.message || 'โหลดปฏิทินไม่ได้ กรุณาลองใหม่'
+    if (version === calendarRequestVersion && cause.name !== 'AbortError') {
+      serverCalendar.value = null
+      calendarError.value = cause.message || 'โหลดปฏิทินไม่ได้ กรุณาลองใหม่'
+    }
   } finally {
     if (version === calendarRequestVersion) calendarLoading.value = false
   }
@@ -723,10 +746,13 @@ watch(calendarFocus, () => {
   selectedCalendarDayKey.value = null
 })
 
-watch(() => [activeView.value, editingBirthProfile.value, accountReady.value, lineSession.idToken, lineSession.status,
-  profileVersion.value, calculatedInput.value, calendarCursor.year, calendarCursor.month, calendarFocus.value,
-  accessPlan.value, billingCycle.value, premiumExpiresAt.value, calendarNow.value.toISOString().slice(0, 16),
-  Boolean(premiumExpiresAt.value && new Date(premiumExpiresAt.value) <= calendarNow.value)], loadCalendar, { immediate: true })
+// A primitive key avoids reloading whenever the 30-second clock creates a new Date/array.
+// Topic/day selection is presentation-only; refresh the same month in the background.
+watch(() => JSON.stringify([activeView.value, editingBirthProfile.value, accountReady.value, lineSession.idToken, lineSession.status,
+  profileVersion.value, calculatedInput.value, calendarCursor.year, calendarCursor.month,
+  accessPlan.value, billingCycle.value, premiumExpiresAt.value, bangkokDay(calendarNow.value),
+  Math.floor(calendarNow.value.getTime() / CALENDAR_CACHE_MS),
+  Boolean(premiumExpiresAt.value && new Date(premiumExpiresAt.value) <= calendarNow.value)]), loadCalendar, { immediate: true })
 
 onMounted(() => {
   calendarClock = window.setInterval(refreshCalendarClock, 30000)

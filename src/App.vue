@@ -1454,5 +1454,8 @@ if (isBlindTestMode) {
       </article>
 
     </section>
+    <footer style="text-align: center; padding: 24px 16px; font-size: .85rem;">
+      <a href="/service.html">ข้อมูลบริการ · บริษัท จีเนียส พิคเจอร์ จำกัด</a>
+    </footer>
   </main>
 </template>

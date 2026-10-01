@@ -11,6 +11,7 @@ const props = defineProps({
   local: Boolean,
   renewalCanceled: Boolean,
   paymentMethod: { type: String, default: 'card' },
+  nextMembership: { type: Object, default: null },
   now: { type: Date, default: () => new Date() }
 })
 defineEmits(['packages'])
@@ -35,13 +36,19 @@ const expiryLabel = computed(() => {
     </div>
     <p v-if="local" class="membership-note">บัญชีทดสอบบนเครื่องนี้ · ปฏิทินเปิดทดลอง 90 วันและเปรียบเทียบได้โดยไม่หักสิทธิ์ ไม่ใช่สมาชิกที่ชำระเงินจริง</p>
     <p v-if="planId === 'premium'">{{ expired ? 'หมดอายุเมื่อ' : 'ใช้สิทธิ์ได้ถึง' }} {{ expiryLabel }} (เวลาไทย)</p>
-    <div v-if="premium && paymentMethod === 'promptpay'" class="renewal-canceled" role="status">
+    <div v-if="premium && paymentMethod === 'promptpay' && !nextMembership" class="renewal-canceled" role="status">
       <strong>ชำระผ่าน PromptPay · ไม่ต่ออายุอัตโนมัติ</strong>
       <p>เมื่อหมดอายุจะกลับเป็น Free ซื้อแพ็กเกจเดิมเพิ่มได้จากหน้าแพ็กเกจ โดยเพิ่มเวลาจากวันหมดอายุเดิม</p>
     </div>
-    <div v-else-if="premium && renewalCanceled" class="renewal-canceled" role="status">
+    <div v-else-if="premium && renewalCanceled && !nextMembership" class="renewal-canceled" role="status">
       <strong>ยกเลิกต่ออายุแล้ว</strong>
       <p>ยังใช้ Premium ได้ถึง {{ expiryLabel }} (เวลาไทย) หลังจากนั้นกลับเป็น Free โดยไม่ต่ออายุอัตโนมัติ</p>
+    </div>
+    <div v-if="nextMembership" class="queued-membership" role="status">
+      <strong>ซื้อไว้ล่วงหน้าแล้ว · Premium รายปี</strong>
+      <p>เริ่ม {{ new Intl.DateTimeFormat('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'long' }).format(new Date(nextMembership.startsAt)) }} · ถึง {{ new Intl.DateTimeFormat('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'long' }).format(new Date(nextMembership.expiresAt)) }}</p>
+      <p>ใช้สิทธิ์รายเดือนจนจบรอบ แล้วเปลี่ยนเป็นรายปีอัตโนมัติ ไม่ต่ออายุรายเดือนอีก</p>
+      <small>{{ nextMembership.paymentMethod === 'promptpay' ? 'PromptPay · รายปีไม่ต่ออายุอัตโนมัติ' : 'บัตร · ต่ออายุรายปีหลังสิ้นสุดปีที่ชำระล่วงหน้า' }}</small>
     </div>
     <div class="membership-grid">
       <article><span>ปฏิทินตามแพ็กเกจ</span><strong>{{ horizon ? `วันนี้ + ล่วงหน้า ${horizon} วัน` : 'เฉพาะวันนี้' }}</strong></article>
@@ -61,6 +68,7 @@ button { padding: 10px 16px; background: #365640; color: white; border: 0; borde
 button:focus-visible { outline: 3px solid #8ba184; outline-offset: 3px; }
 .membership-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px; margin-top: 16px; }
 .renewal-canceled { padding: 16px; margin: 14px 0; border: 2px solid #b8842e; border-radius: 12px; background: #fff3db; color: #624510; }
+.queued-membership { padding: 16px; margin: 14px 0; border: 2px solid #365640; border-radius: 12px; background: #edf3e7; }
 .renewal-canceled strong { font-size: 1.05rem; }
 .renewal-canceled p { font-size: .9rem; }
 article { padding: 16px; background: #f3f2ea; border-radius: 12px; }

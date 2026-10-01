@@ -16,10 +16,12 @@ export default async function calendar(request) {
     const [user] = await rest(`app_users?line_user_id=eq.${encodeURIComponent(identity.sub)}&select=id&limit=1`)
     if (!user) return respond({ error: 'กรุณาเข้าสู่ระบบและบันทึกข้อมูลเกิดก่อน' }, 403)
     const userId = encodeURIComponent(user.id)
-    const [[entitlement], [profile]] = await Promise.all([
-      rest(`user_entitlements?user_id=eq.${userId}&select=plan_id,billing_cycle,premium_expires_at&limit=1`),
+    const [[storedEntitlement], [profile]] = await Promise.all([
+      rest(`user_entitlements?user_id=eq.${userId}&select=plan_id,billing_cycle,premium_expires_at,next_membership&limit=1`),
       rest(`birth_profiles?user_id=eq.${userId}&select=birth_date,birth_time,gender,timezone_id,profile_version&limit=1`)
     ])
+    const entitlement = storedEntitlement?.next_membership && new Date(storedEntitlement.next_membership.startsAt) <= new Date()
+      ? await rest('rpc/activate_annual_membership', { method: 'POST', body: { p_user_id: user.id } }) : storedEntitlement
     if (!profile) return respond({ error: 'กรุณาบันทึกข้อมูลเกิดก่อนดูปฏิทิน' }, 409)
     return respond(buildAuthorizedCalendar({ profile, entitlement, request: input }))
   } catch (error) {

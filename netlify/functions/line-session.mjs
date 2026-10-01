@@ -132,6 +132,7 @@ function firstDayOfCurrentMonth(now = new Date()) {
 
 export async function readAccount(rest, userId, now = new Date()) {
   let [entitlement] = await rest(`user_entitlements?user_id=eq.${encodeURIComponent(userId)}&select=*&limit=1`)
+  if (entitlement?.next_membership && new Date(entitlement.next_membership.startsAt) <= now) entitlement = await rest('rpc/activate_annual_membership', { method: 'POST', body: { p_user_id: userId } })
   const currentPeriod = firstDayOfCurrentMonth(now)
   const premiumExpired = entitlement.plan_id === 'premium' && entitlement.premium_expires_at && new Date(entitlement.premium_expires_at) <= now
   const shouldResetPremiumQuota = entitlement.plan_id === 'premium' && entitlement.comparison_period_start !== currentPeriod
@@ -160,6 +161,7 @@ function entitlementPayload(entitlement) {
     billingCycle: entitlement.billing_cycle ?? 'monthly',
     billingPaymentMethod: entitlement.billing_payment_method ?? 'card',
     premiumExpiresAt: entitlement.premium_expires_at ?? null,
+    nextMembership: entitlement.next_membership ?? null,
     includedComparisonUsed: entitlement.plan_id === 'premium'
       ? entitlement.included_comparison_used
       : entitlement.free_comparison_used ? 1 : 0,
@@ -191,6 +193,8 @@ export async function reserveComparison(rest, userId, rawProfile, expectedVersio
   const profile = normalizeComparisonProfile(rawProfile)
   const [owner] = await rest(`birth_profiles?user_id=eq.${encodeURIComponent(userId)}&select=*&limit=1`)
   if (!owner || owner.profile_version !== expectedVersion) throw new Error('profile_version_changed')
+  const [membership] = await rest(`user_entitlements?user_id=eq.${encodeURIComponent(userId)}&select=next_membership&limit=1`)
+  if (membership?.next_membership && new Date(membership.next_membership.startsAt) <= new Date()) await rest('rpc/activate_annual_membership', { method: 'POST', body: { p_user_id: userId } })
   const toInput = row => ({ birthDate: row.birth_date, birthTime: row.birth_time?.slice(0, 5) || '', gender: row.gender, timezoneId: row.timezone_id,
     relationship: row.relationship, focus: row.focus })
   // Validate dates before reserving a credit. All actual readings use stored owner data.

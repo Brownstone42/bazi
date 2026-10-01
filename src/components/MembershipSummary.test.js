@@ -4,6 +4,13 @@ import MembershipSummary from './MembershipSummary.vue'
 
 const now = new Date('2026-09-28T05:00:00Z')
 describe('membership summary', () => {
+  it('shows prepaid annual separately without promising immediate annual rights or a return to Free after monthly', () => {
+    const wrapper = mount(MembershipSummary, { props: { planId: 'premium', billingCycle: 'monthly', paymentMethod: 'card', renewalCanceled: true, expiresAt: '2026-11-01T05:00:00Z', now, nextMembership: { startsAt: '2026-11-01T05:00:00Z', expiresAt: '2027-11-01T05:00:00Z', paymentMethod: 'promptpay' } } })
+    expect(wrapper.text()).toContain('Premium รายเดือน')
+    expect(wrapper.get('.queued-membership').text()).toContain('ซื้อไว้ล่วงหน้าแล้ว · Premium รายปี')
+    expect(wrapper.text()).toContain('ล่วงหน้า 30 วัน')
+    expect(wrapper.text()).not.toContain('หลังจากนั้นกลับเป็น Free')
+  })
   it('reflects paid monthly PromptPay without implying automatic renewal', () => {
     const wrapper = mount(MembershipSummary, { props: { planId: 'premium', billingCycle: 'monthly', paymentMethod: 'promptpay', renewalCanceled: true, expiresAt: '2026-10-28T05:00:00Z', now } })
     expect(wrapper.text()).toContain('Premium รายเดือน')

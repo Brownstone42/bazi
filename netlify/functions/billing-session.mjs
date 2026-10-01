@@ -37,15 +37,20 @@ export default async request => {
       return Response.json({ url: portal.url })
     }
     const product = products[body.product]
-    if (product.mode === 'subscription' && (subscriptions.has_more || subscriptions.data.some(sub => !['canceled', 'incomplete_expired'].includes(sub.status)))) return Response.json({ error: 'มีสมาชิกหรือรายการสมัครอยู่แล้ว กรุณาจัดการสมาชิกเดิมก่อน' }, { status: 409 })
-    const [entitlement] = await rest('user_entitlements?user_id=eq.' + user.id + '&select=plan_id,billing_cycle,premium_expires_at,billing_payment_method&limit=1')
+    let [entitlement] = await rest('user_entitlements?user_id=eq.' + user.id + '&select=plan_id,billing_cycle,premium_expires_at,billing_payment_method,next_membership&limit=1')
+    if (entitlement?.next_membership && new Date(entitlement.next_membership.startsAt) <= new Date()) entitlement = await rest('rpc/activate_annual_membership', { method: 'POST', body: { p_user_id: user.id } })
+    if (body.product !== 'comparison' && entitlement?.next_membership) return Response.json({ error: 'ซื้อรายปีล่วงหน้าแล้ว ดูวันเริ่มใช้งานได้ที่สมาชิกของฉัน' }, { status: 409 })
+    const advance = body.product === 'yearly' && entitlement?.plan_id === 'premium' && entitlement.billing_cycle === 'monthly' && new Date(entitlement.premium_expires_at) > new Date()
+    const liveSubscriptions = subscriptions.data.filter(sub => !['canceled', 'incomplete_expired'].includes(sub.status))
+    if (product.mode === 'subscription' && (subscriptions.has_more || (advance && liveSubscriptions.length > 1) || liveSubscriptions.some(sub => !advance || sub.items?.data?.length !== 1 || sub.items.data[0]?.price?.id !== config.prices.monthly))) return Response.json({ error: 'มีสมาชิกหรือรายการสมัครอยู่แล้ว กรุณาจัดการสมาชิกเดิมก่อน' }, { status: 409 })
     if (body.product !== 'comparison' && entitlement?.plan_id === 'premium' && new Date(entitlement.premium_expires_at) > new Date()
-      && !(paymentMethod === 'promptpay' && entitlement.billing_payment_method === 'promptpay' && entitlement.billing_cycle === body.product)) {
+      && !advance && !(paymentMethod === 'promptpay' && entitlement.billing_payment_method === 'promptpay' && entitlement.billing_cycle === body.product)) {
       return Response.json({ error: 'คุณมี Premium อยู่แล้ว หากชำระผ่าน PromptPay สามารถซื้อแพ็กเกจเดิมเพิ่มได้ ส่วนการเปลี่ยนแพ็กเกจหรือวิธีชำระให้รอสมาชิกเดิมหมดอายุก่อน' }, { status: 409 })
     }
     if (paymentMethod === 'card') validatePrice(await stripe.prices.retrieve(config.prices[body.product]), product)
     const order = await rest('rpc/reserve_billing_order_v2', { method: 'POST', body: { p_user_id: user.id, p_product: body.product, p_payment_method: paymentMethod } })
     if (order.product !== body.product || order.payment_method !== paymentMethod) return Response.json({ error: 'มีหน้าชำระเงินเดิมที่ยังไม่เสร็จ กรุณาใช้แพ็กเกจและวิธีชำระเดิม หรือรอให้รายการเดิมหมดอายุ (ไม่เกิน 65 นาที)' }, { status: 409 })
+    if (advance && (!order.advance_starts_at || Date.parse(order.advance_starts_at) !== Date.parse(entitlement.premium_expires_at))) return Response.json({ error: 'ช่วงสมาชิกเปลี่ยนแล้ว กรุณารอรายการเดิมหมดอายุแล้วลองใหม่' }, { status: 409 })
     if (Date.now() > new Date(order.created_at).getTime() + 29 * 60000) return Response.json({ error: 'กรุณาใช้หน้าชำระเงินเดิม หรือรอให้รายการเดิมหมดอายุแล้วลองใหม่' }, { status: 409 })
     const checkout = await stripe.checkout.sessions.create(checkoutParameters({ order, customerId: customer.stripe_customer_id, priceId: config.prices[body.product], origin: config.origin }), { idempotencyKey: 'bazi-checkout-' + order.id })
     return Response.json({ url: checkout.url, testMode: true })

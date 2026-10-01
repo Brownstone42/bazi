@@ -169,6 +169,7 @@ const luckTrack = ref(null)
 const accessPlan = ref(previewPlan === 'premium' ? 'premium' : 'free')
 const billingCycle = ref('monthly')
 const billingPaymentMethod = ref('card')
+const nextMembership = ref(null)
 const premiumExpiresAt = ref(null)
 const calendarNow = ref(new Date())
 const serverCalendar = ref(null)
@@ -323,6 +324,7 @@ function applyEntitlement(entitlement) {
   if (!entitlement) return
   if (entitlement.billingCycle !== undefined) billingCycle.value = entitlement.billingCycle
   if (entitlement.billingPaymentMethod !== undefined) billingPaymentMethod.value = entitlement.billingPaymentMethod
+  if (entitlement.nextMembership !== undefined) nextMembership.value = entitlement.nextMembership
   if (entitlement.premiumExpiresAt !== undefined) premiumExpiresAt.value = entitlement.premiumExpiresAt
   if (!previewPlan) accessPlan.value = entitlement.planId
   comparisonIncludedUsed.value = entitlement.includedComparisonUsed ?? 0
@@ -759,6 +761,7 @@ watch(() => JSON.stringify([activeView.value, editingBirthProfile.value, account
   Math.floor(calendarNow.value.getTime() / CALENDAR_CACHE_MS),
   Boolean(premiumExpiresAt.value && new Date(premiumExpiresAt.value) <= calendarNow.value)]), loadCalendar, { immediate: true })
 
+watch(() => Boolean(nextMembership.value && new Date(nextMembership.value.startsAt) <= calendarNow.value), due => { if (due && lineSession.idToken) refreshBillingAccount(null) })
 onMounted(() => {
   calendarClock = window.setInterval(refreshCalendarClock, 30000)
   window.addEventListener('focus', refreshCalendarClock)
@@ -881,6 +884,7 @@ if (isBlindTestMode) {
       :plan-id="accessPlan"
       :billing-cycle="billingCycle"
       :payment-method="billingPaymentMethod"
+      :next-membership="nextMembership"
       :expires-at="premiumExpiresAt"
       :renewal-canceled="renewalCanceled"
       :included-used="comparisonIncludedUsed"
@@ -1260,10 +1264,10 @@ if (isBlindTestMode) {
 
       <div v-if="pricingNotice" class="pricing-notice"><i class="pi pi-info-circle" /> {{ pricingNotice }}</div>
 
-      <PackageSelection v-if="!selectedBillingProduct" :plan-id="accessPlan" :billing-cycle="billingCycle" :payment-method="billingPaymentMethod" :expires-at="premiumExpiresAt" @select="product => choosePlan(product === 'comparison' ? 'comparison' : 'premium', product)" />
+      <PackageSelection v-if="!selectedBillingProduct" :plan-id="accessPlan" :billing-cycle="billingCycle" :payment-method="billingPaymentMethod" :expires-at="premiumExpiresAt" :next-membership="nextMembership" @select="product => choosePlan(product === 'comparison' ? 'comparison' : 'premium', product)" />
 
       <p class="pricing-footnote">ช่วงดูล่วงหน้าเลื่อนตามวันใช้งาน ขณะสมาชิกยังมีผล เมื่อหมดอายุดูได้เฉพาะวันนี้ โดยไม่ลบข้อมูลที่บันทึกไว้</p>
-      <BillingPanel :id-token="lineSession.idToken || ''" :product="selectedBillingProduct" :local="lineSession.status === 'local'" :promptpay-only="accessPlan === 'premium' && billingPaymentMethod === 'promptpay' && selectedBillingProduct === billingCycle && new Date(premiumExpiresAt) > calendarNow" @back="selectedBillingProduct = null; pricingNotice = ''" @refresh-account="refreshBillingAccount" />
+      <BillingPanel :id-token="lineSession.idToken || ''" :product="selectedBillingProduct" :local="lineSession.status === 'local'" :advance-starts-at="selectedBillingProduct === 'yearly' && accessPlan === 'premium' && billingCycle === 'monthly' && new Date(premiumExpiresAt) > calendarNow ? premiumExpiresAt : null" :promptpay-only="accessPlan === 'premium' && billingPaymentMethod === 'promptpay' && selectedBillingProduct === billingCycle && new Date(premiumExpiresAt) > calendarNow" @back="selectedBillingProduct = null; pricingNotice = ''" @refresh-account="refreshBillingAccount" />
       <p class="pricing-footnote">Stripe อยู่ในโหมดทดสอบ ยังไม่เปิดรับเงินจริง</p>
     </section>
 

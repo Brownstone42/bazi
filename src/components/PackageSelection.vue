@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-const props = defineProps({ planId: { type: String, default: 'free' }, billingCycle: { type: String, default: 'monthly' }, paymentMethod: { type: String, default: 'card' }, expiresAt: { type: String, default: null } })
+const props = defineProps({ planId: { type: String, default: 'free' }, billingCycle: { type: String, default: 'monthly' }, paymentMethod: { type: String, default: 'card' }, expiresAt: { type: String, default: null }, nextMembership: { type: Object, default: null } })
 defineEmits(['select'])
 const active = computed(() => props.planId === 'premium' && Boolean(props.expiresAt && new Date(props.expiresAt) > new Date()))
 const packages = [
@@ -8,7 +8,9 @@ const packages = [
   { id: 'yearly', title: 'Premium รายปี', price: '999', period: 'ปี', horizon: 90, quota: 10 }
 ]
 const current = id => active.value && props.billingCycle === id
-const blocked = id => active.value && !(current(id) && props.paymentMethod === 'promptpay')
+const advance = id => active.value && props.billingCycle === 'monthly' && id === 'yearly' && !props.nextMembership
+const blocked = id => Boolean(props.nextMembership) || (active.value && !advance(id) && !(current(id) && props.paymentMethod === 'promptpay'))
+const date = value => new Intl.DateTimeFormat('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'long' }).format(new Date(value))
 </script>
 
 <template>
@@ -19,7 +21,9 @@ const blocked = id => active.value && !(current(id) && props.paymentMethod === '
       <p>{{ pack.id === 'monthly' ? 'วางแผนเรื่องสำคัญในแต่ละเดือน' : 'วางแผนไกลขึ้น พร้อมโควตาเปรียบเทียบมากขึ้น' }}</p>
       <ul><li>ปฏิทินวันนี้ + ล่วงหน้า {{ pack.horizon }} วัน</li><li>เปรียบเทียบ {{ pack.quota }} คน / เดือน</li><li>พื้นดวงและถนนชีวิต 10 ปีทุกช่วง</li></ul>
       <p v-if="current(pack.id)" class="state">{{ paymentMethod === 'promptpay' ? 'PromptPay · จ่ายครั้งเดียว ไม่ต่ออายุอัตโนมัติ' : 'สมาชิกแบบชำระผ่านบัตร' }}</p>
-      <button type="button" :disabled="blocked(pack.id)" @click="$emit('select', pack.id)">{{ current(pack.id) ? paymentMethod === 'promptpay' ? 'ซื้อเพิ่มเพื่อขยายวันหมดอายุ' : 'กำลังใช้แพ็กเกจนี้' : active ? 'เปลี่ยนได้เมื่อสมาชิกเดิมหมดอายุ' : `เลือก${pack.title}` }}</button>
+      <p v-if="advance(pack.id)" class="state">เริ่มรายปี {{ date(expiresAt) }} หลังรายเดือนสิ้นสุด</p>
+      <p v-if="nextMembership && pack.id === 'yearly'" class="state">ซื้อไว้ล่วงหน้าแล้ว · เริ่ม {{ date(nextMembership.startsAt) }}</p>
+      <button type="button" :disabled="blocked(pack.id)" @click="$emit('select', pack.id)">{{ nextMembership ? pack.id === 'yearly' ? 'ซื้อรายปีล่วงหน้าแล้ว' : 'ใช้รายเดือนจนถึงวันเริ่มรายปี' : advance(pack.id) ? 'ซื้อรายปีล่วงหน้า' : current(pack.id) ? paymentMethod === 'promptpay' ? 'ซื้อเพิ่มเพื่อขยายวันหมดอายุ' : 'กำลังใช้แพ็กเกจนี้' : active ? 'เปลี่ยนได้เมื่อสมาชิกเดิมหมดอายุ' : `เลือก${pack.title}` }}</button>
     </article>
     <article class="package credits"><div class="topline"><span>เครดิตเปรียบเทียบเพิ่ม</span><b>ซื้อแยกได้</b></div><h3>59 <small>บาท / 5 คน</small></h3><p>เครดิตไม่หมดอายุ ใช้โควตาสมาชิกที่เหลือก่อน</p><button type="button" @click="$emit('select', 'comparison')">ซื้อเครดิต 5 คน</button></article>
     <article class="package free"><div class="topline"><span>Free</span><b v-if="!active">แพ็กเกจปัจจุบัน</b></div><h3>ใช้ฟรี</h3><p>พื้นดวง · ถนนชีวิต 10 ปีทุกช่วง · ภาพรวมวันนี้ · เปรียบเทียบฟรีครั้งแรก 1 คน</p></article>

@@ -22,7 +22,7 @@ begin
   assert ent.premium_expires_at=((expiry at time zone 'Asia/Bangkok')+interval '1 month') at time zone 'Asia/Bangkok', 'extension from existing expiry';
   assert ent.included_comparison_used=3 and ent.purchased_comparison_credits=5, 'payment preserves usage and credits';
   begin
-    perform public.reserve_billing_order_v2(u,'yearly','promptpay');
+    perform public.reserve_billing_order_v2(u,'monthly','card');
     raise exception 'expected active membership conflict';
   exception when others then if sqlerrm <> 'active_membership_conflict' then raise; end if; end;
   o := public.reserve_billing_order_v2(u,'comparison','promptpay');

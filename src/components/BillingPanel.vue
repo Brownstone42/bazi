@@ -1,7 +1,7 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { billingRequest, trustedBillingUrl } from '../services/billing-api'
-const props = defineProps({ idToken: { type: String, default: '' }, product: { type: String, default: null }, local: Boolean, promptpayOnly: Boolean })
+const props = defineProps({ idToken: { type: String, default: '' }, product: { type: String, default: null }, local: Boolean, promptpayOnly: Boolean, advanceStartsAt: { type: String, default: null } })
 const emit = defineEmits(['refresh-account', 'back'])
 const paymentMethod = ref('promptpay')
 const status = ref(null)
@@ -63,6 +63,11 @@ watch(() => props.product, () => { paymentMethod.value = 'promptpay'; error.valu
       <p v-if="product === 'comparison'">ชำระครั้งเดียว ได้เครดิต 5 คน ไม่หมดอายุ ใช้โควตาสมาชิกก่อน</p>
       <p v-else-if="paymentMethod === 'promptpay'">ใช้ Premium {{ product === 'monthly' ? '1 เดือน' : '1 ปี' }} ไม่ต่ออายุและไม่ตัดเงินอัตโนมัติ หากซื้อแพ็กเกจเดิมเพิ่มขณะยังมีสิทธิ์ ระบบจะเพิ่มเวลาจากวันหมดอายุเดิม</p>
       <p v-else>ต่ออายุอัตโนมัติและเรียกเก็บตามรอบที่เลือก จนกว่าจะยกเลิก ยกเลิกการต่ออายุได้โดยใช้สิทธิ์ต่อจนจบรอบที่ชำระแล้ว</p>
+      <div v-if="advanceStartsAt" class="advance-notice" role="note">
+        <strong>ซื้อรายปีล่วงหน้า · จ่าย 999 บาทวันนี้</strong>
+        <p>รายปีเริ่ม {{ dateLabel(advanceStartsAt) }} หลังรายเดือนสิ้นสุด โดยยังใช้สิทธิ์รายเดือนจนถึงวันนั้น ระบบจะยกเลิกต่ออายุรายเดือนเมื่อชำระสำเร็จ</p>
+        <p v-if="paymentMethod === 'card'">ปีแรกชำระครบแล้ว จะเรียกเก็บรายปีครั้งถัดไปเมื่อสิ้นสุดปีที่ซื้อไว้ ไม่เรียกเก็บซ้ำในวันเริ่มรายปี</p>
+      </div>
       <button class="pay-button" type="button" :disabled="busy || local || !status?.enabled" @click="openStripe('checkout')">{{ busy ? 'กำลังทำรายการ…' : paymentMethod === 'promptpay' ? 'ไปสแกน QR PromptPay' : 'ไปชำระด้วยบัตร' }}</button>
     </div>
     <template v-if="status?.enabled && !product">
@@ -76,8 +81,12 @@ watch(() => props.product, () => { paymentMethod.value = 'promptpay'; error.valu
           <small>เครดิตซื้อเพิ่มยังอยู่ ไม่ถูกลบจากการยกเลิกต่ออายุ</small>
         </template>
         <template v-else>
-          <strong>{{ subscription.status === 'active' ? 'เปิดต่ออายุอัตโนมัติ' : subscriptionLabels[subscription.status] || 'กรุณาตรวจสอบสถานะใน Stripe' }}</strong>
-          <p v-if="subscription.periodEnd">{{ subscription.status === 'active' ? 'รอบถัดไป' : 'สิ้นสุดรอบ' }} {{ dateLabel(subscription.periodEnd * 1000) }}</p>
+          <template v-if="subscription.annualAdvance && subscription.status === 'trialing'">
+            <strong>รายปีที่ชำระล่วงหน้า · เปิดต่ออายุรายปี</strong>
+            <p v-if="subscription.nextBillAt">เรียกเก็บรายปีครั้งถัดไป {{ dateLabel(subscription.nextBillAt * 1000) }}</p>
+          </template>
+          <strong v-else>{{ subscription.status === 'active' ? 'เปิดต่ออายุอัตโนมัติ' : subscriptionLabels[subscription.status] || 'กรุณาตรวจสอบสถานะใน Stripe' }}</strong>
+          <p v-if="subscription.periodEnd && !(subscription.annualAdvance && subscription.status === 'trialing')">{{ subscription.status === 'active' ? 'รอบถัดไป' : 'สิ้นสุดรอบ' }} {{ dateLabel(subscription.periodEnd * 1000) }}</p>
         </template>
       </div>
       <button v-if="status.hasCustomer && status.subscriptions.length" type="button" :disabled="busy" @click="openStripe('portal')">จัดการบัตร / ยกเลิกต่ออายุ / ใบเสร็จ</button>
@@ -101,6 +110,7 @@ button.method { background: #fffcf7; color: #493f35; border: 2px solid #ded8cb; 
 button.method[aria-pressed="true"] { background: #e8efdf; border-color: #365640; }
 .method i, .method strong { display: block; margin-bottom: 8px; }
 .pay-button { width: 100%; margin-top: 12px; }
+.advance-notice { padding: 16px; border: 1px solid #bccbb1; border-radius: 12px; background: #fffcf7; margin-top: 14px; }
 @media(max-width: 430px) { .payment-methods { grid-template-columns: 1fr; } }
 h3 { font-size: 1rem; }
 p { font-size: .9rem; line-height: 1.8; }

@@ -10,15 +10,24 @@ describe('separate membership packages', () => {
     expect(wrapper.get('.free').text()).not.toContain('แพ็กเกจปัจจุบัน')
     expect(wrapper.get('.current button').element.disabled).toBe(true)
   })
-  it('allows only same-cycle PromptPay extensions while active', async () => {
+  it('allows monthly PromptPay extensions and an advance annual purchase while monthly is active', async () => {
     const wrapper = mount(PackageSelection, { props: { ...props, paymentMethod: 'promptpay' } })
     const buttons = wrapper.findAll('button')
     expect(buttons[0].text()).toContain('ขยายวันหมดอายุ')
     expect(buttons[0].element.disabled).toBe(false)
-    expect(buttons[1].element.disabled).toBe(true)
+    expect(buttons[1].element.disabled).toBe(false)
+    expect(buttons[1].text()).toContain('ซื้อรายปีล่วงหน้า')
     expect(buttons[2].element.disabled).toBe(false)
     await buttons[0].trigger('click')
     expect(wrapper.emitted('select')).toEqual([['monthly']])
+  })
+  it('blocks further membership purchases once an annual package is queued, without blocking credits', () => {
+    const wrapper = mount(PackageSelection, { props: { ...props, nextMembership: { startsAt: props.expiresAt } } })
+    const buttons = wrapper.findAll('button')
+    expect(buttons[0].element.disabled).toBe(true)
+    expect(buttons[1].element.disabled).toBe(true)
+    expect(buttons[1].text()).toContain('ซื้อรายปีล่วงหน้าแล้ว')
+    expect(buttons[2].element.disabled).toBe(false)
   })
   it('offers both packages after expiry and shows annual quota separately', () => {
     const wrapper = mount(PackageSelection, { props: { ...props, expiresAt: '2020-01-01T00:00:00Z' } })

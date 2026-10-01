@@ -11,6 +11,7 @@ function fixture({ allowed = true, report = record(), profile = owner, failSave 
   let deductions = 0
   const rest = vi.fn(async (path, options) => {
     if (path.startsWith('birth_profiles?')) return [profile]
+    if (path.startsWith('user_entitlements?')) return [{ next_membership: null }]
     if (path === 'rpc/reserve_comparison_report_v2') {
       const existing = reserved
       if (allowed && !reserved) { deductions++; reserved = true }

@@ -16,14 +16,16 @@ export default async request => {
     let [customer] = await rest('billing_customers?user_id=eq.' + user.id + '&select=*&limit=1')
     if (!customer && body.action === 'status') return Response.json({ enabled: true, testMode: true, payments: [], subscriptions: [], hasCustomer: false })
     if (!customer && body.action === 'portal') return Response.json({ error: 'ยังไม่มีข้อมูลการชำระเงิน' }, { status: 409 })
-    if (body.action === 'checkout' && !products[body.product]) return Response.json({ error: 'แพ็กเกจไม่ถูกต้อง' }, { status: 400 })
+    if (body.action === 'checkout' && !Object.hasOwn(products, body.product)) return Response.json({ error: 'แพ็กเกจไม่ถูกต้อง' }, { status: 400 })
+    const paymentMethod = body.paymentMethod ?? 'card'
+    if (body.action === 'checkout' && !['card', 'promptpay'].includes(paymentMethod)) return Response.json({ error: 'วิธีชำระเงินไม่ถูกต้อง' }, { status: 400 })
     if (!customer) {
       const created = await stripe.customers.create({ metadata: { user_id: user.id } }, { idempotencyKey: 'bazi-customer-' + user.id })
       ;[customer] = await rest('billing_customers?on_conflict=user_id&select=*', { method: 'POST', prefer: 'resolution=merge-duplicates,return=representation', body: { user_id: user.id, stripe_customer_id: created.id } })
     }
     const subscriptions = await stripe.subscriptions.list({ customer: customer.stripe_customer_id, status: 'all', limit: 100 })
     if (body.action === 'status') {
-      const payments = await rest('billing_payments?user_id=eq.' + user.id + '&select=id,product,amount,created_at&order=created_at.desc&limit=20')
+      const payments = await rest('billing_payments?user_id=eq.' + user.id + '&select=id,product,amount,created_at,payment_method,paid_until&order=created_at.desc&limit=20')
       return Response.json({ enabled: true, testMode: true, payments, hasCustomer: true, subscriptions: subscriptions.data.map(subscriptionStatus) }, { headers: { 'Cache-Control': 'no-store' } })
     }
     if (body.action === 'portal') {
@@ -36,9 +38,14 @@ export default async request => {
     }
     const product = products[body.product]
     if (product.mode === 'subscription' && (subscriptions.has_more || subscriptions.data.some(sub => !['canceled', 'incomplete_expired'].includes(sub.status)))) return Response.json({ error: 'มีสมาชิกหรือรายการสมัครอยู่แล้ว กรุณาจัดการสมาชิกเดิมก่อน' }, { status: 409 })
-    validatePrice(await stripe.prices.retrieve(config.prices[body.product]), product)
-    const order = await rest('rpc/reserve_billing_order', { method: 'POST', body: { p_user_id: user.id, p_product: body.product } })
-    if (order.product !== body.product) return Response.json({ error: 'มีรายการสมัครอีกแพ็กเกจที่ยังไม่เสร็จ กรุณารอให้รายการเดิมหมดอายุก่อน (ไม่เกิน 65 นาที)' }, { status: 409 })
+    const [entitlement] = await rest('user_entitlements?user_id=eq.' + user.id + '&select=plan_id,billing_cycle,premium_expires_at,billing_payment_method&limit=1')
+    if (body.product !== 'comparison' && entitlement?.plan_id === 'premium' && new Date(entitlement.premium_expires_at) > new Date()
+      && !(paymentMethod === 'promptpay' && entitlement.billing_payment_method === 'promptpay' && entitlement.billing_cycle === body.product)) {
+      return Response.json({ error: 'คุณมี Premium อยู่แล้ว หากชำระผ่าน PromptPay สามารถซื้อแพ็กเกจเดิมเพิ่มได้ ส่วนการเปลี่ยนแพ็กเกจหรือวิธีชำระให้รอสมาชิกเดิมหมดอายุก่อน' }, { status: 409 })
+    }
+    if (paymentMethod === 'card') validatePrice(await stripe.prices.retrieve(config.prices[body.product]), product)
+    const order = await rest('rpc/reserve_billing_order_v2', { method: 'POST', body: { p_user_id: user.id, p_product: body.product, p_payment_method: paymentMethod } })
+    if (order.product !== body.product || order.payment_method !== paymentMethod) return Response.json({ error: 'มีหน้าชำระเงินเดิมที่ยังไม่เสร็จ กรุณาใช้แพ็กเกจและวิธีชำระเดิม หรือรอให้รายการเดิมหมดอายุ (ไม่เกิน 65 นาที)' }, { status: 409 })
     if (Date.now() > new Date(order.created_at).getTime() + 29 * 60000) return Response.json({ error: 'กรุณาใช้หน้าชำระเงินเดิม หรือรอให้รายการเดิมหมดอายุแล้วลองใหม่' }, { status: 409 })
     const checkout = await stripe.checkout.sessions.create(checkoutParameters({ order, customerId: customer.stripe_customer_id, priceId: config.prices[body.product], origin: config.origin }), { idempotencyKey: 'bazi-checkout-' + order.id })
     return Response.json({ url: checkout.url, testMode: true })

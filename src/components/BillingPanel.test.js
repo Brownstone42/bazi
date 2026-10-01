@@ -55,6 +55,8 @@ describe('billing panel', () => {
     expect(billingRequest).toHaveBeenCalledTimes(1)
     expect(billingRequest).toHaveBeenCalledWith({ idToken: 'token', action: 'status' })
     expect(wrapper.text()).toContain('999 บาท/ปี')
+    expect(wrapper.get('.pay-button').text()).toContain('QR PromptPay')
+    await wrapper.findAll('.method')[1].trigger('click')
     expect(wrapper.text()).toContain('ต่ออายุอัตโนมัติ')
     expect(wrapper.emitted('refresh-account')).toHaveLength(1)
   })

@@ -10,6 +10,7 @@ const props = defineProps({
   purchasedCredits: { type: Number, default: 0 },
   local: Boolean,
   renewalCanceled: Boolean,
+  paymentMethod: { type: String, default: 'card' },
   now: { type: Date, default: () => new Date() }
 })
 defineEmits(['packages'])
@@ -34,7 +35,11 @@ const expiryLabel = computed(() => {
     </div>
     <p v-if="local" class="membership-note">บัญชีทดสอบบนเครื่องนี้ · ปฏิทินเปิดทดลอง 90 วันและเปรียบเทียบได้โดยไม่หักสิทธิ์ ไม่ใช่สมาชิกที่ชำระเงินจริง</p>
     <p v-if="planId === 'premium'">{{ expired ? 'หมดอายุเมื่อ' : 'ใช้สิทธิ์ได้ถึง' }} {{ expiryLabel }} (เวลาไทย)</p>
-    <div v-if="premium && renewalCanceled" class="renewal-canceled" role="status">
+    <div v-if="premium && paymentMethod === 'promptpay'" class="renewal-canceled" role="status">
+      <strong>ชำระผ่าน PromptPay · ไม่ต่ออายุอัตโนมัติ</strong>
+      <p>เมื่อหมดอายุจะกลับเป็น Free ซื้อแพ็กเกจเดิมเพิ่มได้จากหน้าแพ็กเกจ โดยเพิ่มเวลาจากวันหมดอายุเดิม</p>
+    </div>
+    <div v-else-if="premium && renewalCanceled" class="renewal-canceled" role="status">
       <strong>ยกเลิกต่ออายุแล้ว</strong>
       <p>ยังใช้ Premium ได้ถึง {{ expiryLabel }} (เวลาไทย) หลังจากนั้นกลับเป็น Free โดยไม่ต่ออายุอัตโนมัติ</p>
     </div>

@@ -1,8 +1,9 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { billingRequest, trustedBillingUrl } from '../services/billing-api'
-const props = defineProps({ idToken: { type: String, default: '' }, product: { type: String, default: null }, local: Boolean })
-const emit = defineEmits(['refresh-account'])
+const props = defineProps({ idToken: { type: String, default: '' }, product: { type: String, default: null }, local: Boolean, promptpayOnly: Boolean })
+const emit = defineEmits(['refresh-account', 'back'])
+const paymentMethod = ref('promptpay')
 const status = ref(null)
 const busy = ref(false)
 const error = ref('')
@@ -25,7 +26,7 @@ async function openStripe(action) {
   busy.value = true
   error.value = ''
   try {
-    const response = await billingRequest({ idToken: props.idToken, action, product: action === 'checkout' ? props.product : undefined })
+    const response = await billingRequest({ idToken: props.idToken, action, product: action === 'checkout' ? props.product : undefined, paymentMethod: action === 'checkout' ? paymentMethod.value : undefined })
     window.location.assign(trustedBillingUrl(response.url))
   } catch (e) { error.value = e.message }
   finally { busy.value = false }
@@ -43,15 +44,28 @@ onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', refreshWhenVisible)
 })
 watch(() => props.idToken, refresh)
+watch(() => props.product, () => { paymentMethod.value = 'promptpay'; error.value = '' })
 </script>
 
 <template>
   <section class="billing-panel" aria-labelledby="billing-title">
-    <h2 id="billing-title">การชำระเงินและต่ออายุ</h2>
+    <button v-if="product" type="button" class="secondary" @click="emit('back')">← กลับไปเลือกแพ็กเกจ</button>
+    <h2 id="billing-title">{{ product ? 'ชำระเงิน · ' + labels[product] : 'การชำระเงินและต่ออายุ' }}</h2>
     <p class="test-badge">โหมดทดสอบเท่านั้น · ยังไม่รับเงินจริง</p>
     <p v-if="local">บัญชีจำลองบน localhost ยังจ่ายผ่าน Stripe ไม่ได้ ต้องใช้บัญชี LINE และตั้งค่าระบบทดสอบฝั่งเซิร์ฟเวอร์ก่อน</p>
     <p v-if="error" role="alert">{{ error }}</p>
-    <template v-if="status?.enabled">
+    <div v-if="product" class="checkout-choice">
+      <h3>เลือกวิธีชำระเงิน</h3>
+      <div class="payment-methods" role="group" aria-label="วิธีชำระเงิน">
+        <button type="button" class="method" :aria-pressed="paymentMethod === 'promptpay'" @click="paymentMethod = 'promptpay'"><i class="pi pi-qrcode" aria-hidden="true" /><strong>PromptPay</strong><small>สแกน QR · ชำระครั้งเดียว</small></button>
+        <button type="button" class="method" :disabled="promptpayOnly" :aria-pressed="paymentMethod === 'card'" @click="paymentMethod = 'card'"><i class="pi pi-credit-card" aria-hidden="true" /><strong>บัตรเครดิต / เดบิต</strong><small>{{ promptpayOnly ? 'เปลี่ยนได้เมื่อสมาชิกเดิมหมดอายุ' : product === 'comparison' ? 'ชำระครั้งเดียว' : 'ต่ออายุอัตโนมัติ' }}</small></button>
+      </div>
+      <p v-if="product === 'comparison'">ชำระครั้งเดียว ได้เครดิต 5 คน ไม่หมดอายุ ใช้โควตาสมาชิกก่อน</p>
+      <p v-else-if="paymentMethod === 'promptpay'">ใช้ Premium {{ product === 'monthly' ? '1 เดือน' : '1 ปี' }} ไม่ต่ออายุและไม่ตัดเงินอัตโนมัติ หากซื้อแพ็กเกจเดิมเพิ่มขณะยังมีสิทธิ์ ระบบจะเพิ่มเวลาจากวันหมดอายุเดิม</p>
+      <p v-else>ต่ออายุอัตโนมัติและเรียกเก็บตามรอบที่เลือก จนกว่าจะยกเลิก ยกเลิกการต่ออายุได้โดยใช้สิทธิ์ต่อจนจบรอบที่ชำระแล้ว</p>
+      <button class="pay-button" type="button" :disabled="busy || local || !status?.enabled" @click="openStripe('checkout')">{{ busy ? 'กำลังทำรายการ…' : paymentMethod === 'promptpay' ? 'ไปสแกน QR PromptPay' : 'ไปชำระด้วยบัตร' }}</button>
+    </div>
+    <template v-if="status?.enabled && !product">
       <div v-for="(subscription, index) in status.subscriptions" :key="index" class="subscription-status" :class="{ 'renewal-off': isRenewalCanceled(subscription) && subscription.status !== 'canceled' }" role="status">
         <template v-if="isRenewalCanceled(subscription) && subscription.status !== 'canceled'">
           <strong><i class="pi pi-calendar-times" aria-hidden="true" /> ยกเลิกต่ออายุแล้ว</strong>
@@ -66,17 +80,11 @@ watch(() => props.idToken, refresh)
           <p v-if="subscription.periodEnd">{{ subscription.status === 'active' ? 'รอบถัดไป' : 'สิ้นสุดรอบ' }} {{ dateLabel(subscription.periodEnd * 1000) }}</p>
         </template>
       </div>
-      <div v-if="product" class="checkout-choice">
-        <h3>{{ labels[product] }}</h3>
-        <p v-if="product !== 'comparison'">ต่ออายุอัตโนมัติและเรียกเก็บตามรอบที่เลือก จนกว่าจะยกเลิก ยกเลิกการต่ออายุได้โดยใช้สิทธิ์ต่อจนจบรอบที่ชำระแล้ว</p>
-        <p v-else>ชำระครั้งเดียว ไม่ต่ออายุอัตโนมัติ เครดิตไม่หมดอายุ</p>
-        <button type="button" :disabled="busy" @click="openStripe('checkout')">ไปชำระเงินทดสอบบน Stripe</button>
-      </div>
-      <button v-if="status.hasCustomer" type="button" :disabled="busy" @click="openStripe('portal')">จัดการบัตร / ยกเลิกต่ออายุ / ใบเสร็จ</button>
+      <button v-if="status.hasCustomer && status.subscriptions.length" type="button" :disabled="busy" @click="openStripe('portal')">จัดการบัตร / ยกเลิกต่ออายุ / ใบเสร็จ</button>
       <h3>ประวัติการชำระที่ยืนยันแล้ว</h3>
       <p v-if="!status.payments.length">ยังไม่มีรายการชำระที่ยืนยันแล้ว</p>
       <ul v-else>
-        <li v-for="payment in status.payments" :key="payment.id"><span>{{ labels[payment.product] }}<small>{{ dateLabel(payment.created_at) }} · รายการทดสอบ</small></span><strong>{{ (payment.amount / 100).toLocaleString('th-TH') }} บาท</strong></li>
+        <li v-for="payment in status.payments" :key="payment.id"><span>{{ labels[payment.product] }}<small>{{ dateLabel(payment.created_at) }} · {{ payment.payment_method === 'promptpay' ? 'PromptPay' : 'บัตร' }} · รายการทดสอบ</small></span><strong>{{ (payment.amount / 100).toLocaleString('th-TH') }} บาท</strong></li>
       </ul>
       <p>หลังกลับจาก Stripe ให้กดตรวจสอบอีกครั้ง สิทธิ์จะเปิดเมื่อระบบได้รับการยืนยันการชำระแล้ว ไม่ใช่เพียงกลับมาที่หน้านี้</p>
     </template>
@@ -87,6 +95,13 @@ watch(() => props.idToken, refresh)
 <style scoped>
 .billing-panel { margin: 20px 0; padding: 22px; background: #fffcf7; border: 1px solid #e5ddd0; border-radius: 20px; color: #493f35; }
 h2 { margin: 0; font-size: 1.2rem; }
+.secondary + h2 { margin-top: 20px; }
+.payment-methods { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+button.method { background: #fffcf7; color: #493f35; border: 2px solid #ded8cb; text-align: left; }
+button.method[aria-pressed="true"] { background: #e8efdf; border-color: #365640; }
+.method i, .method strong { display: block; margin-bottom: 8px; }
+.pay-button { width: 100%; margin-top: 12px; }
+@media(max-width: 430px) { .payment-methods { grid-template-columns: 1fr; } }
 h3 { font-size: 1rem; }
 p { font-size: .9rem; line-height: 1.8; }
 .test-badge { color: #8c621d; }

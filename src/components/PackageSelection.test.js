@@ -1,0 +1,30 @@
+import { mount } from '@vue/test-utils'
+import { describe, expect, it } from 'vitest'
+import PackageSelection from './PackageSelection.vue'
+describe('separate membership packages', () => {
+  const props = { planId: 'premium', billingCycle: 'monthly', expiresAt: '2099-01-01T00:00:00Z' }
+  it('marks only the purchased monthly package as current, not Free or annual', () => {
+    const wrapper = mount(PackageSelection, { props: { ...props, paymentMethod: 'card' } })
+    expect(wrapper.findAll('.current')).toHaveLength(1)
+    expect(wrapper.get('.current').text()).toContain('Premium รายเดือน')
+    expect(wrapper.get('.free').text()).not.toContain('แพ็กเกจปัจจุบัน')
+    expect(wrapper.get('.current button').element.disabled).toBe(true)
+  })
+  it('allows only same-cycle PromptPay extensions while active', async () => {
+    const wrapper = mount(PackageSelection, { props: { ...props, paymentMethod: 'promptpay' } })
+    const buttons = wrapper.findAll('button')
+    expect(buttons[0].text()).toContain('ขยายวันหมดอายุ')
+    expect(buttons[0].element.disabled).toBe(false)
+    expect(buttons[1].element.disabled).toBe(true)
+    expect(buttons[2].element.disabled).toBe(false)
+    await buttons[0].trigger('click')
+    expect(wrapper.emitted('select')).toEqual([['monthly']])
+  })
+  it('offers both packages after expiry and shows annual quota separately', () => {
+    const wrapper = mount(PackageSelection, { props: { ...props, expiresAt: '2020-01-01T00:00:00Z' } })
+    expect(wrapper.findAll('.current')).toHaveLength(0)
+    expect(wrapper.findAll('button').every(b => !b.element.disabled)).toBe(true)
+    expect(wrapper.text()).toContain('10 คน / เดือน')
+    expect(wrapper.text()).toContain('ล่วงหน้า 90 วัน')
+  })
+})

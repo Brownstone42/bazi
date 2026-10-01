@@ -4,6 +4,13 @@ import MembershipSummary from './MembershipSummary.vue'
 
 const now = new Date('2026-09-28T05:00:00Z')
 describe('membership summary', () => {
+  it('reflects paid monthly PromptPay without implying automatic renewal', () => {
+    const wrapper = mount(MembershipSummary, { props: { planId: 'premium', billingCycle: 'monthly', paymentMethod: 'promptpay', renewalCanceled: true, expiresAt: '2026-10-28T05:00:00Z', now } })
+    expect(wrapper.text()).toContain('Premium รายเดือน')
+    expect(wrapper.text()).toContain('PromptPay · ไม่ต่ออายุอัตโนมัติ')
+    expect(wrapper.text()).not.toContain('ยกเลิกต่ออายุแล้ว')
+    expect(wrapper.text()).toContain('ใช้สิทธิ์ได้ถึง')
+  })
   it('highlights canceled renewal without removing paid rights or credits', async () => {
     const wrapper = mount(MembershipSummary, { props: { planId: 'premium', renewalCanceled: true, expiresAt: '2026-10-28T05:00:00Z', includedUsed: 1, purchasedCredits: 5, now } })
     expect(wrapper.get('.renewal-canceled').text()).toContain('ยกเลิกต่ออายุแล้ว')

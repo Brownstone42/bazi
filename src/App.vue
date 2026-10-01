@@ -11,6 +11,7 @@ import CompatibilityScore from './components/CompatibilityScore.vue'
 import PersonalDayReading from './components/PersonalDayReading.vue'
 import MembershipSummary from './components/MembershipSummary.vue'
 import BillingPanel from './components/BillingPanel.vue'
+import PackageSelection from './components/PackageSelection.vue'
 import { BIRTH_EDIT_INTERVAL, birthProfileChanged, birthEditBlocked, formatBirthEditDate } from './services/profile-policy'
 import { loadComparisonPeople, saveComparisonPerson } from './services/comparison-people'
 import './styles/identity.css'
@@ -167,6 +168,7 @@ const activeView = ref(viewFromHash())
 const luckTrack = ref(null)
 const accessPlan = ref(previewPlan === 'premium' ? 'premium' : 'free')
 const billingCycle = ref('monthly')
+const billingPaymentMethod = ref('card')
 const premiumExpiresAt = ref(null)
 const calendarNow = ref(new Date())
 const serverCalendar = ref(null)
@@ -320,6 +322,7 @@ function calculateAndDisplay(input) {
 function applyEntitlement(entitlement) {
   if (!entitlement) return
   if (entitlement.billingCycle !== undefined) billingCycle.value = entitlement.billingCycle
+  if (entitlement.billingPaymentMethod !== undefined) billingPaymentMethod.value = entitlement.billingPaymentMethod
   if (entitlement.premiumExpiresAt !== undefined) premiumExpiresAt.value = entitlement.premiumExpiresAt
   if (!previewPlan) accessPlan.value = entitlement.planId
   comparisonIncludedUsed.value = entitlement.includedComparisonUsed ?? 0
@@ -529,6 +532,7 @@ function setActiveView(view) {
 }
 
 function openPricing(message = '') {
+  selectedBillingProduct.value = null
   pricingNotice.value = message
   setActiveView('pricing')
 }
@@ -538,7 +542,7 @@ function choosePlan(planId, cycle = selectedBillingCycle.value) {
   selectedBillingCycle.value = cycle
   selectedBillingProduct.value = planId === 'comparison' ? 'comparison' : cycle
   const period = planId === 'premium' ? cycle === 'yearly' ? ' รายปี · 999 บาท · ล่วงหน้า 90 วัน' : ' รายเดือน · 149 บาท · ล่วงหน้า 30 วัน' : ''
-  pricingNotice.value = `เลือก ${plan.label}${period} แล้ว — ดูส่วนชำระเงินทดสอบด้านล่าง`
+  pricingNotice.value = `เลือก ${plan.label}${period}`
 }
 
 async function refreshBillingAccount(billingStatus) {
@@ -876,6 +880,7 @@ if (isBlindTestMode) {
       v-if="!isBlindTestMode && accountReady && chart && ((activeView === 'profile' && editingBirthProfile) || activeView === 'pricing')"
       :plan-id="accessPlan"
       :billing-cycle="billingCycle"
+      :payment-method="billingPaymentMethod"
       :expires-at="premiumExpiresAt"
       :renewal-canceled="renewalCanceled"
       :included-used="comparisonIncludedUsed"
@@ -1247,7 +1252,7 @@ if (isBlindTestMode) {
     </section>
 
     <section v-if="chart && !isBlindTestMode && activeView === 'pricing'" class="pricing-section">
-      <div class="pricing-heading">
+      <div v-if="!selectedBillingProduct" class="pricing-heading">
         <p class="eyebrow">CHOOSE YOUR PLAN</p>
         <h2>เลือกสิทธิ์ที่เหมาะกับการใช้งาน</h2>
         <p>พื้นดวง วันนี้ และถนนชีวิต 10 ปีทุกช่วงดูฟรี · Premium รายเดือนดูล่วงหน้า 30 วัน รายปีดูล่วงหน้า 90 วัน</p>
@@ -1255,50 +1260,10 @@ if (isBlindTestMode) {
 
       <div v-if="pricingNotice" class="pricing-notice"><i class="pi pi-info-circle" /> {{ pricingNotice }}</div>
 
-      <div class="pricing-grid">
-        <article class="price-card free-card">
-          <div class="price-card-topline"><span>เริ่มต้นใช้งาน</span><b>Free</b></div>
-          <h3>ฟรี</h3>
-          <p>ทำความเข้าใจตัวเองและดูภาพรวมของวันนี้</p>
-          <ul>
-            <li><i class="pi pi-check" /> พื้นดวงทั้งหมด</li>
-            <li><i class="pi pi-check" /> ถนนชีวิต 10 ปีทุกช่วง</li>
-            <li><i class="pi pi-check" /> ภาพรวมและคำแนะนำวันนี้</li>
-            <li><i class="pi pi-check" /> เปรียบเทียบบุคคล 1 คน</li>
-          </ul>
-          <button type="button" class="price-button secondary" disabled>แพ็กเกจปัจจุบัน</button>
-        </article>
-
-        <article class="price-card premium-card">
-          <div class="price-card-topline"><span>วางแผนล่วงหน้า</span><b>แนะนำ</b></div>
-          <h3>Premium</h3>
-          <div class="price-options">
-            <button type="button" :aria-pressed="selectedBillingCycle === 'monthly'" @click="choosePlan('premium', 'monthly')"><strong>149 บาท</strong><small>ต่อเดือน · ล่วงหน้า 30 วัน</small></button>
-            <button type="button" :aria-pressed="selectedBillingCycle === 'yearly'" @click="choosePlan('premium', 'yearly')"><strong>999 บาท</strong><small>ต่อปี · ล่วงหน้า 90 วัน · ประหยัด 789 บาท</small></button>
-          </div>
-          <ul>
-            <li><i class="pi pi-check" /> ปฏิทินล่วงหน้า: รายเดือน 30 วัน · รายปี 90 วัน</li>
-            <li><i class="pi pi-check" /> เปรียบเทียบบุคคล: รายเดือน 5 คน/เดือน · รายปี 10 คน/เดือน</li>
-          </ul>
-          <button type="button" class="price-button primary" @click="choosePlan('premium')">เลือก Premium</button>
-        </article>
-
-        <article class="price-card comparison-card">
-          <div class="price-card-topline"><span>ใช้เฉพาะความสัมพันธ์</span><b>ไม่หมดอายุ</b></div>
-          <h3>เปรียบเทียบบุคคล</h3>
-          <div class="single-price"><strong>59 บาท</strong><small>ใช้ได้ 5 คน เก็บสิทธิ์ไว้ได้โดยไม่จำกัดเวลา</small></div>
-          <ul>
-            <li><i class="pi pi-check" /> เลือกคนและเรื่องที่อยากดู</li>
-            <li><i class="pi pi-check" /> เปิดรายงานเดิมซ้ำได้</li>
-            <li><i class="pi pi-check" /> หากเป็น Premium ระบบใช้โควตารายเดือนก่อน</li>
-            <li><i class="pi pi-check" /> ไม่รวมสิทธิ์ปฏิทิน Premium</li>
-          </ul>
-          <button type="button" class="price-button secondary" @click="choosePlan('comparison')">เลือกเฉพาะเปรียบเทียบ</button>
-        </article>
-      </div>
+      <PackageSelection v-if="!selectedBillingProduct" :plan-id="accessPlan" :billing-cycle="billingCycle" :payment-method="billingPaymentMethod" :expires-at="premiumExpiresAt" @select="product => choosePlan(product === 'comparison' ? 'comparison' : 'premium', product)" />
 
       <p class="pricing-footnote">ช่วงดูล่วงหน้าเลื่อนตามวันใช้งาน ขณะสมาชิกยังมีผล เมื่อหมดอายุดูได้เฉพาะวันนี้ โดยไม่ลบข้อมูลที่บันทึกไว้</p>
-      <BillingPanel :id-token="lineSession.idToken || ''" :product="selectedBillingProduct" :local="lineSession.status === 'local'" @refresh-account="refreshBillingAccount" />
+      <BillingPanel :id-token="lineSession.idToken || ''" :product="selectedBillingProduct" :local="lineSession.status === 'local'" :promptpay-only="accessPlan === 'premium' && billingPaymentMethod === 'promptpay' && selectedBillingProduct === billingCycle && new Date(premiumExpiresAt) > calendarNow" @back="selectedBillingProduct = null; pricingNotice = ''" @refresh-account="refreshBillingAccount" />
       <p class="pricing-footnote">Stripe อยู่ในโหมดทดสอบ ยังไม่เปิดรับเงินจริง</p>
     </section>
 

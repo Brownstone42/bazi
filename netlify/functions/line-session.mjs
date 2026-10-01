@@ -158,6 +158,7 @@ function entitlementPayload(entitlement) {
   return {
     planId: entitlement.plan_id,
     billingCycle: entitlement.billing_cycle ?? 'monthly',
+    billingPaymentMethod: entitlement.billing_payment_method ?? 'card',
     premiumExpiresAt: entitlement.premium_expires_at ?? null,
     includedComparisonUsed: entitlement.plan_id === 'premium'
       ? entitlement.included_comparison_used

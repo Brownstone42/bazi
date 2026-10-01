@@ -2,6 +2,16 @@
 
 Implemented: server-priced card Checkout, monthly/yearly recurring products, one-time 5-person credits, verified raw-body webhooks, atomic payment grants, payment history and customer portal with cancel-at-period-end. No live keys are accepted.
 
+## PromptPay addition — 2026-10-01
+
+- Apply `supabase/migrations/202610010001_promptpay_billing.sql` before deploying these functions. It adds payment-method columns and service-only order/payment functions, without deleting existing records. Then run `supabase/tests/promptpay_billing.sql` (synthetic fixture, all writes rolled back).
+- Monthly 149 THB and annual 999 THB have separate package cards and checkout views. Card purchases retain automatic renewal. PromptPay purchases use one-time Checkout (`mode: payment`) with a server-owned inline THB amount; no new Stripe prices or secrets are needed. Credits remain 59 THB for 5 people by either method.
+- PromptPay grants one calendar month or year from payment time in Bangkok. An active PromptPay membership can be extended only with the same package/method, starting at its existing expiry. Card subscriptions and active memberships of a different cycle block a second Premium purchase. Switching waits for expiry; credit purchases remain available.
+- Paid PromptPay proof is re-fetched from Stripe, including the succeeded PaymentIntent, actual PromptPay payment method, customer, amount and order identity. Both `checkout.session.completed` and `checkout.session.async_payment_succeeded` use the same session ID in the atomic ledger; unpaid completion and duplicate delivery never grant twice.
+- Payments do not reset monthly usage. The current package, its expiry, payment method and non-renewing status are populated from server entitlements. History shows each payment's method; returning from Checkout does not grant access optimistically.
+- Provider smoke check passed for all three one-time products in the configured Stripe Sandbox. The created sessions were left unpaid and explicitly expired. The configured test webhook now also listens for `checkout.session.async_payment_succeeded`. This verifies provider configuration, not a completed QR payment or LINE browser end-to-end flow.
+- Owner applied the migration successfully; confirmed the new columns/RPCs against the configured database. `scripts/test-promptpay-database.mjs` passed with a newly marked synthetic user: monthly, same-cycle extension, annual after expiry, credits, duplicate protection, owner/amount validation and preserved quota. Test ledger rows are explicitly synthetic, not Stripe-confirmed QR payments. The fixture was returned to expired Free and audit rows retained; existing LINE users were not changed. The app still rejects live keys/events.
+
 ## Owner setup
 
 1. Create a Stripe account at https://dashboard.stripe.com/register and use a Sandbox/test environment. Ask Stripe to confirm acceptance of this astrology service before any live launch. Do not disguise the business category.

@@ -33,23 +33,41 @@ export function validatePrice(price, product) {
 export function checkoutParameters({ order, customerId, priceId, origin }) {
   const product = products[order.product]
   if (!product) throw new Error('invalid_product')
-  const metadata = { order_id: order.id }
+  const promptpay = order.payment_method === 'promptpay'
+  const metadata = { order_id: order.id, ...(promptpay ? { product: order.product, payment_method: 'promptpay' } : {}) }
+  const mode = promptpay ? 'payment' : product.mode
   return {
-    mode: product.mode, customer: customerId, client_reference_id: order.id,
-    line_items: [{ price: priceId, quantity: 1 }], payment_method_types: ['card'],
-    metadata, ...(product.mode === 'subscription' ? { subscription_data: { metadata } } : {}),
+    mode, customer: customerId, client_reference_id: order.id,
+    line_items: promptpay ? [{ price_data: { currency: 'thb', unit_amount: product.amount, product_data: { name: order.product === 'comparison' ? 'เครดิตเปรียบเทียบ 5 คน' : `Premium ${order.product === 'monthly' ? '1 เดือน' : '1 ปี'} · ชำระครั้งเดียว` } }, quantity: 1 }] : [{ price: priceId, quantity: 1 }],
+    payment_method_types: [promptpay ? 'promptpay' : 'card'],
+    metadata, ...(mode === 'subscription' ? { subscription_data: { metadata } } : { payment_intent_data: { metadata } }),
     success_url: origin + '/?billing=return#pricing', cancel_url: origin + '/?billing=cancel#pricing',
     expires_at: Math.floor(new Date(order.created_at).getTime() / 1000) + 3600,
-    custom_text: { submit: { message: product.mode === 'subscription' ? 'ต่ออายุอัตโนมัติตามแพ็กเกจ ยกเลิกการต่ออายุได้ในหน้าสมาชิก โดยใช้สิทธิ์ได้จนสิ้นสุดรอบที่ชำระแล้ว' : 'ชำระครั้งเดียว ได้เครดิตเปรียบเทียบ 5 คน ไม่หมดอายุ' } }
+    custom_text: { submit: { message: mode === 'subscription' ? 'ต่ออายุอัตโนมัติตามแพ็กเกจ ยกเลิกการต่ออายุได้ในหน้าสมาชิก โดยใช้สิทธิ์ได้จนสิ้นสุดรอบที่ชำระแล้ว' : order.product === 'comparison' ? 'ชำระครั้งเดียว ได้เครดิตเปรียบเทียบ 5 คน ไม่หมดอายุ' : `ชำระครั้งเดียว ใช้ Premium ${order.product === 'monthly' ? '1 เดือน' : '1 ปี'} ไม่ต่ออายุอัตโนมัติ หากซื้อแพ็กเกจเดิมเพิ่มขณะยังมีสิทธิ์ ระบบจะเพิ่มเวลาจากวันหมดอายุเดิม` } }
   }
 }
 export async function processBillingEvent(event, { stripe, rest, config }) {
   if (event.livemode !== false) throw new Error('live_event_rejected')
   const object = event.data.object
-  if (event.type === 'checkout.session.completed' && object.mode === 'payment') {
-    const session = await stripe.checkout.sessions.retrieve(object.id, { expand: ['line_items.data.price'] })
+  if (['checkout.session.completed', 'checkout.session.async_payment_succeeded'].includes(event.type) && object.mode === 'payment') {
+    const session = await stripe.checkout.sessions.retrieve(object.id, { expand: ['line_items.data.price', 'payment_intent.payment_method'] })
     if (session.livemode || session.payment_status !== 'paid') return { ignored: true }
     const items = session.line_items
+    if (session.metadata?.payment_method === 'promptpay') {
+      const product = products[session.metadata.product]
+      const intent = session.payment_intent
+      const item = items.data[0]
+      if (!product || items.has_more || items.data.length !== 1 || item.quantity !== 1 || item.price?.recurring
+        || item.price?.currency !== 'thb' || item.price?.unit_amount !== product.amount
+        || session.amount_total !== product.amount || session.currency !== 'thb' || session.client_reference_id !== session.metadata.order_id
+        || intent?.status !== 'succeeded' || intent.amount_received !== product.amount || intent.currency !== 'thb'
+        || intent.livemode !== false || intent.payment_method?.type !== 'promptpay' || idOf(intent.customer) !== idOf(session.customer)
+        || intent.metadata?.order_id !== session.metadata.order_id) throw new Error('invalid_promptpay_payment')
+      return rest('rpc/apply_promptpay_payment', { method: 'POST', body: {
+        p_payment_id: session.id, p_order_id: session.metadata.order_id, p_customer_id: idOf(session.customer),
+        p_product: session.metadata.product, p_amount: session.amount_total
+      } })
+    }
     if (items.has_more || items.data.length !== 1 || items.data[0].quantity !== 1 || idOf(items.data[0].price) !== config.prices.comparison
       || session.amount_total !== products.comparison.amount || session.currency !== 'thb') throw new Error('invalid_payment')
     return rest('rpc/apply_billing_payment', { method: 'POST', body: {

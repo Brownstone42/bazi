@@ -1,8 +1,8 @@
-export async function billingRequest({ idToken, action, product, fetchImpl = fetch }) {
+export async function billingRequest({ idToken, action, product, paymentMethod, fetchImpl = fetch }) {
   if (!idToken) throw new Error('กรุณาเข้าสู่ระบบ LINE เพื่อจัดการการชำระเงิน')
   const response = await fetchImpl('/api/billing-session', {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ idToken, action, ...(product ? { product } : {}) })
+    body: JSON.stringify({ idToken, action, ...(product ? { product } : {}), ...(action === 'checkout' && paymentMethod ? { paymentMethod } : {}) })
   })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error || 'เชื่อมระบบชำระเงินไม่ได้ กรุณาลองใหม่')
@@ -13,4 +13,3 @@ export function trustedBillingUrl(value) {
   if (url.protocol !== 'https:' || !['checkout.stripe.com', 'billing.stripe.com'].includes(url.hostname)) throw new Error('ลิงก์ชำระเงินไม่ถูกต้อง')
   return url.href
 }
-

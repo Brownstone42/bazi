@@ -1,4 +1,5 @@
 import Stripe from 'stripe'
+import { billingMode, matchesMode } from './billing-mode.mjs'
 
 export const products = {
   monthly: { amount: 14900, interval: 'month', mode: 'subscription', env: 'STRIPE_PRICE_MONTHLY' },
@@ -6,13 +7,18 @@ export const products = {
   comparison: { amount: 5900, mode: 'payment', env: 'STRIPE_PRICE_COMPARISON' }
 }
 export function billingConfig(env = process.env) {
-  // Test-only until merchant approval and the paid-content security review.
-  if (env.BILLING_TEST_ENABLED !== 'true' || !env.STRIPE_SECRET_KEY?.startsWith('sk_test_')) throw new Error('billing_not_configured')
+  const livemode = billingMode(env) === 'live'
+  const prefix = livemode ? /^(sk|rk)_live_/ : /^(sk|rk)_test_/
+  if ((livemode ? env.BILLING_LIVE_ENABLED : env.BILLING_TEST_ENABLED) !== 'true'
+    || !prefix.test(env.STRIPE_SECRET_KEY || '')
+    || (livemode && env.BILLING_LIVE_SCHEMA_READY !== 'true')) throw new Error('billing_not_configured')
   const origin = new URL(env.BILLING_RETURN_ORIGIN)
   if (origin.protocol !== 'https:' && !(origin.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(origin.hostname))) throw new Error('billing_not_configured')
+  if (livemode && (origin.protocol !== 'https:' || ['localhost', '127.0.0.1'].includes(origin.hostname)
+    || !env.STRIPE_WEBHOOK_SECRET?.startsWith('whsec_'))) throw new Error('billing_not_configured')
   const prices = Object.fromEntries(Object.entries(products).map(([key, product]) => [key, env[product.env]]))
   if (Object.values(prices).some(value => !value?.startsWith('price_')) || new Set(Object.values(prices)).size !== 3) throw new Error('billing_not_configured')
-  return { secret: env.STRIPE_SECRET_KEY, webhookSecret: env.STRIPE_WEBHOOK_SECRET, origin: origin.origin, prices }
+  return { secret: env.STRIPE_SECRET_KEY, webhookSecret: env.STRIPE_WEBHOOK_SECRET, origin: origin.origin, prices, livemode }
 }
 export function stripeClient(config) { return new Stripe(config.secret, { maxNetworkRetries: 2, timeout: 15000 }) }
 export function idOf(value) { return typeof value === 'string' ? value : value?.id }
@@ -29,8 +35,8 @@ export function subscriptionStatus(subscription) {
     nextBillAt: subscription.trial_end ?? subscription.items?.data?.[0]?.current_period_end ?? null
   }
 }
-export function validatePrice(price, product) {
-  if (!product || price.livemode || !price.active || price.currency !== 'thb' || price.unit_amount !== product.amount
+export function validatePrice(price, product, config = {}) {
+  if (!product || !matchesMode(price, config) || !price.active || price.currency !== 'thb' || price.unit_amount !== product.amount
     || (product.interval ? price.recurring?.interval !== product.interval || price.recurring?.interval_count !== 1 : Boolean(price.recurring))) throw new Error('invalid_price')
 }
 export function checkoutParameters({ order, customerId, priceId, origin }) {
@@ -65,7 +71,7 @@ export async function fulfillAnnualAdvance({ orderId, customerId, paymentId, sub
   }
   if (order.replaces_subscription_id && order.status !== 'paid') {
     const previous = await stripe.subscriptions.retrieve(order.replaces_subscription_id)
-    if (previous.livemode !== false || idOf(previous.customer) !== customerId || previous.items?.data?.length !== 1
+    if (!matchesMode(previous, config) || idOf(previous.customer) !== customerId || previous.items?.data?.length !== 1
       || idOf(previous.items.data[0].price) !== config.prices.monthly) throw new Error('invalid_monthly_subscription')
     if (previous.status !== 'canceled') {
       const end = Math.floor(Date.parse(order.advance_starts_at) / 1000)
@@ -81,11 +87,12 @@ export async function fulfillAnnualAdvance({ orderId, customerId, paymentId, sub
   } })
 }
 export async function processBillingEvent(event, { stripe, rest, config }) {
-  if (event.livemode !== false) throw new Error('live_event_rejected')
+  if (!matchesMode(event, config)) throw new Error('billing_mode_mismatch')
   const object = event.data.object
   if (['checkout.session.completed', 'checkout.session.async_payment_succeeded'].includes(event.type) && object.mode === 'payment') {
     const session = await stripe.checkout.sessions.retrieve(object.id, { expand: ['line_items.data.price', 'payment_intent.payment_method'] })
-    if (session.livemode || session.payment_status !== 'paid') return { ignored: true }
+    if (!matchesMode(session, config)) throw new Error('billing_mode_mismatch')
+    if (session.payment_status !== 'paid') return { ignored: true }
     const items = session.line_items
     if (session.metadata?.payment_method === 'promptpay') {
       const product = products[session.metadata.product]
@@ -95,7 +102,7 @@ export async function processBillingEvent(event, { stripe, rest, config }) {
         || item.price?.currency !== 'thb' || item.price?.unit_amount !== product.amount
         || session.amount_total !== product.amount || session.currency !== 'thb' || session.client_reference_id !== session.metadata.order_id
         || intent?.status !== 'succeeded' || intent.amount_received !== product.amount || intent.currency !== 'thb'
-        || intent.livemode !== false || intent.payment_method?.type !== 'promptpay' || idOf(intent.customer) !== idOf(session.customer)
+        || !matchesMode(intent, config) || intent.payment_method?.type !== 'promptpay' || idOf(intent.customer) !== idOf(session.customer)
         || intent.metadata?.order_id !== session.metadata.order_id) throw new Error('invalid_promptpay_payment')
       if (session.metadata.annual_advance === 'true') return fulfillAnnualAdvance({ orderId: session.metadata.order_id, customerId: idOf(session.customer), paymentId: session.id, amount: session.amount_total }, { stripe, rest, config })
       return rest('rpc/apply_promptpay_payment', { method: 'POST', body: {
@@ -114,12 +121,12 @@ export async function processBillingEvent(event, { stripe, rest, config }) {
     const invoice = await stripe.invoices.retrieve(object.id)
     const subscriptionId = idOf(invoice.parent?.subscription_details?.subscription)
     if (!subscriptionId) return { ignored: true }
-    if (invoice.livemode || invoice.status !== 'paid' || invoice.currency !== 'thb' || !['subscription_create', 'subscription_cycle'].includes(invoice.billing_reason)) throw new Error('invalid_invoice')
+    if (!matchesMode(invoice, config) || invoice.status !== 'paid' || invoice.currency !== 'thb' || !['subscription_create', 'subscription_cycle'].includes(invoice.billing_reason)) throw new Error('invalid_invoice')
     const subscription = await stripe.subscriptions.retrieve(subscriptionId)
     const item = subscription.items.data[0]
     const productKey = Object.keys(products).find(key => config.prices[key] === idOf(item?.price) && products[key].mode === 'subscription')
     if (subscription.metadata?.annual_advance === 'true' && invoice.billing_reason === 'subscription_create') {
-      if (productKey !== 'yearly' || subscription.livemode !== false || subscription.items.data.length !== 1 || item.quantity !== 1
+      if (productKey !== 'yearly' || !matchesMode(subscription, config) || subscription.items.data.length !== 1 || item.quantity !== 1
         || idOf(subscription.customer) !== idOf(invoice.customer) || invoice.amount_paid !== 99900 || invoice.lines.has_more
         || invoice.lines.data.length !== 2) throw new Error('invalid_advance_invoice')
       const prepaid = invoice.lines.data.find(line => line.amount === 99900)
@@ -128,12 +135,12 @@ export async function processBillingEvent(event, { stripe, rest, config }) {
       const upfrontPrice = await stripe.prices.retrieve(idOf(prepaid.pricing?.price_details?.price))
       // Stripe archives inline one-time prices immediately; active=false is expected.
       // The paid invoice, currency, exact amount and absence of recurrence remain mandatory.
-      if (upfrontPrice.livemode !== false || upfrontPrice.currency !== 'thb' || upfrontPrice.unit_amount !== 99900 || upfrontPrice.recurring) throw new Error('invalid_advance_price')
+      if (!matchesMode(upfrontPrice, config) || upfrontPrice.currency !== 'thb' || upfrontPrice.unit_amount !== 99900 || upfrontPrice.recurring) throw new Error('invalid_advance_price')
       const [order] = await rest(`billing_orders?id=eq.${encodeURIComponent(subscription.metadata.order_id)}&select=*&limit=1`)
       if (!order?.advance_expires_at || subscription.trial_end !== Math.floor(Date.parse(order.advance_expires_at) / 1000)) throw new Error('invalid_advance_invoice')
       return fulfillAnnualAdvance({ orderId: order.id, customerId: idOf(invoice.customer), paymentId: invoice.id, subscriptionId: subscription.id, amount: invoice.amount_paid }, { stripe, rest, config })
     }
-    if (!productKey || subscription.livemode || subscription.items.data.length !== 1 || item.quantity !== 1 || idOf(subscription.customer) !== idOf(invoice.customer)
+    if (!productKey || !matchesMode(subscription, config) || subscription.items.data.length !== 1 || item.quantity !== 1 || idOf(subscription.customer) !== idOf(invoice.customer)
       || invoice.amount_paid !== products[productKey].amount || invoice.lines.has_more || invoice.lines.data.length !== 1) throw new Error('invalid_invoice')
     const line = invoice.lines.data[0]
     if (idOf(line.pricing?.price_details?.price) !== config.prices[productKey] || line.quantity !== 1 || !Number.isFinite(line.period?.end)) throw new Error('invalid_invoice_line')

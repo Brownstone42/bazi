@@ -51,7 +51,7 @@ watch(() => props.product, () => { paymentMethod.value = 'promptpay'; error.valu
   <section class="billing-panel" aria-labelledby="billing-title">
     <button v-if="product" type="button" class="secondary" @click="emit('back')">← กลับไปเลือกแพ็กเกจ</button>
     <h2 id="billing-title">{{ product ? 'ชำระเงิน · ' + labels[product] : 'การชำระเงินและต่ออายุ' }}</h2>
-    <p class="test-badge">โหมดทดสอบเท่านั้น · ยังไม่รับเงินจริง</p>
+    <p v-if="status?.testMode || local" class="test-badge">โหมดทดสอบเท่านั้น · ยังไม่รับเงินจริง</p>
     <p v-if="local">บัญชีจำลองบน localhost ยังจ่ายผ่าน Stripe ไม่ได้ ต้องใช้บัญชี LINE และตั้งค่าระบบทดสอบฝั่งเซิร์ฟเวอร์ก่อน</p>
     <p v-if="error" role="alert">{{ error }}</p>
     <div v-if="product" class="checkout-choice">
@@ -93,7 +93,7 @@ watch(() => props.product, () => { paymentMethod.value = 'promptpay'; error.valu
       <h3>ประวัติการชำระที่ยืนยันแล้ว</h3>
       <p v-if="!status.payments.length">ยังไม่มีรายการชำระที่ยืนยันแล้ว</p>
       <ul v-else>
-        <li v-for="payment in status.payments" :key="payment.id"><span>{{ labels[payment.product] }}<small>{{ dateLabel(payment.created_at) }} · {{ payment.payment_method === 'promptpay' ? 'PromptPay' : 'บัตร' }} · รายการทดสอบ</small></span><strong>{{ (payment.amount / 100).toLocaleString('th-TH') }} บาท</strong></li>
+        <li v-for="payment in status.payments" :key="payment.id"><span>{{ labels[payment.product] }}<small>{{ dateLabel(payment.created_at) }} · {{ payment.payment_method === 'promptpay' ? 'PromptPay' : 'บัตร' }}{{ status.testMode ? ' · รายการทดสอบ' : '' }}</small></span><strong>{{ (payment.amount / 100).toLocaleString('th-TH') }} บาท</strong></li>
       </ul>
       <p>หลังกลับจาก Stripe ให้กดตรวจสอบอีกครั้ง สิทธิ์จะเปิดเมื่อระบบได้รับการยืนยันการชำระแล้ว ไม่ใช่เพียงกลับมาที่หน้านี้</p>
     </template>

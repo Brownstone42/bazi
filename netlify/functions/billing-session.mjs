@@ -14,7 +14,7 @@ export default async request => {
     if (!user) return Response.json({ error: 'กรุณาเปิดบัญชี LINE ก่อน' }, { status: 401 })
     const stripe = stripeClient(config)
     let [customer] = await rest('billing_customers?user_id=eq.' + user.id + '&select=*&limit=1')
-    if (!customer && body.action === 'status') return Response.json({ enabled: true, testMode: true, payments: [], subscriptions: [], hasCustomer: false })
+    if (!customer && body.action === 'status') return Response.json({ enabled: true, testMode: !config.livemode, payments: [], subscriptions: [], hasCustomer: false }, { headers: { 'Cache-Control': 'no-store' } })
     if (!customer && body.action === 'portal') return Response.json({ error: 'ยังไม่มีข้อมูลการชำระเงิน' }, { status: 409 })
     if (body.action === 'checkout' && !Object.hasOwn(products, body.product)) return Response.json({ error: 'แพ็กเกจไม่ถูกต้อง' }, { status: 400 })
     const paymentMethod = body.paymentMethod ?? 'card'
@@ -26,13 +26,13 @@ export default async request => {
     const subscriptions = await stripe.subscriptions.list({ customer: customer.stripe_customer_id, status: 'all', limit: 100 })
     if (body.action === 'status') {
       const payments = await rest('billing_payments?user_id=eq.' + user.id + '&select=id,product,amount,created_at,payment_method,paid_until&order=created_at.desc&limit=20')
-      return Response.json({ enabled: true, testMode: true, payments, hasCustomer: true, subscriptions: subscriptions.data.map(subscriptionStatus) }, { headers: { 'Cache-Control': 'no-store' } })
+      return Response.json({ enabled: true, testMode: !config.livemode, payments, hasCustomer: true, subscriptions: subscriptions.data.map(subscriptionStatus) }, { headers: { 'Cache-Control': 'no-store' } })
     }
     if (body.action === 'portal') {
       const portalConfig = await stripe.billingPortal.configurations.create({ features: {
         invoice_history: { enabled: true }, payment_method_update: { enabled: true },
         subscription_cancel: { enabled: true, mode: 'at_period_end' }, subscription_update: { enabled: false }
-      } }, { idempotencyKey: 'bazi-test-portal-v1' })
+      } }, { idempotencyKey: `bazi-${config.livemode ? 'live' : 'test'}-portal-v1` })
       const portal = await stripe.billingPortal.sessions.create({ customer: customer.stripe_customer_id, configuration: portalConfig.id, return_url: config.origin + '/?billing=return#pricing' })
       return Response.json({ url: portal.url })
     }
@@ -47,18 +47,18 @@ export default async request => {
       && !advance && !(paymentMethod === 'promptpay' && entitlement.billing_payment_method === 'promptpay' && entitlement.billing_cycle === body.product)) {
       return Response.json({ error: 'คุณมี Premium อยู่แล้ว หากชำระผ่าน PromptPay สามารถซื้อแพ็กเกจเดิมเพิ่มได้ ส่วนการเปลี่ยนแพ็กเกจหรือวิธีชำระให้รอสมาชิกเดิมหมดอายุก่อน' }, { status: 409 })
     }
-    if (paymentMethod === 'card') validatePrice(await stripe.prices.retrieve(config.prices[body.product]), product)
+    if (paymentMethod === 'card') validatePrice(await stripe.prices.retrieve(config.prices[body.product]), product, config)
     const order = await rest('rpc/reserve_billing_order_v2', { method: 'POST', body: { p_user_id: user.id, p_product: body.product, p_payment_method: paymentMethod } })
     if (order.product !== body.product || order.payment_method !== paymentMethod) return Response.json({ error: 'มีหน้าชำระเงินเดิมที่ยังไม่เสร็จ กรุณาใช้แพ็กเกจและวิธีชำระเดิม หรือรอให้รายการเดิมหมดอายุ (ไม่เกิน 65 นาที)' }, { status: 409 })
     if (advance && (!order.advance_starts_at || Date.parse(order.advance_starts_at) !== Date.parse(entitlement.premium_expires_at))) return Response.json({ error: 'ช่วงสมาชิกเปลี่ยนแล้ว กรุณารอรายการเดิมหมดอายุแล้วลองใหม่' }, { status: 409 })
     if (Date.now() > new Date(order.created_at).getTime() + 29 * 60000) return Response.json({ error: 'กรุณาใช้หน้าชำระเงินเดิม หรือรอให้รายการเดิมหมดอายุแล้วลองใหม่' }, { status: 409 })
     const checkout = await stripe.checkout.sessions.create(checkoutParameters({ order, customerId: customer.stripe_customer_id, priceId: config.prices[body.product], origin: config.origin }), { idempotencyKey: 'bazi-checkout-' + order.id })
-    return Response.json({ url: checkout.url, testMode: true })
+    return Response.json({ url: checkout.url, testMode: !config.livemode })
   } catch (error) {
     const auth = /LINE ID token|token verification/.test(error.message)
     const unavailable = /billing_not_configured|Invalid URL|Missing server configuration/.test(error.message)
     console.error('billing-session failed', { kind: auth ? 'auth' : unavailable ? 'configuration' : 'billing' })
-    return Response.json({ error: auth ? 'กรุณาเชื่อมต่อ LINE อีกครั้ง' : unavailable ? 'ระบบชำระเงินทดสอบยังตั้งค่าไม่ครบ' : 'ยังทำรายการไม่ได้ กรุณาลองใหม่อีกครั้ง' }, { status: auth ? 401 : unavailable ? 503 : 500 })
+    return Response.json({ error: auth ? 'กรุณาเชื่อมต่อ LINE อีกครั้ง' : unavailable ? 'ระบบชำระเงินยังไม่เปิดให้บริการ' : 'ยังทำรายการไม่ได้ กรุณาลองใหม่อีกครั้ง' }, { status: auth ? 401 : unavailable ? 503 : 500 })
   }
 }
 export const config = { path: '/api/billing-session' }

@@ -1,0 +1,49 @@
+LIVE BILLING PREPARATION — NOT ACTIVATED
+
+Current Sandbox remains in Supabase public. Live uses bazi_live exclusively.
+The migration copies account identity and birth profiles, including their edit
+cooldown, but NOT test entitlements, credits, orders, payments or comparison reports.
+New Live entitlements start Free. Old Sandbox records are retained unchanged.
+Later account/table/function migrations must explicitly update both schemas.
+
+Owner setup (do not replace live credentials before completing these steps):
+1. Run supabase/migrations/202610020001_live_account_isolation.sql once, after
+   all previous migrations. It runs atomically. If bazi_live already exists it
+   refuses to overwrite it. Do not drop the schema to retry without inspection.
+2. Supabase Data API settings: add bazi_live to Exposed schemas, keeping public.
+   Do NOT grant anon/authenticated schema or table access. Only service_role
+   has access; LINE identity is verified by the backend before database use.
+3. Fill ignored .env.stripe-live-import locally with the Live restricted key
+   and Live webhook signing secret. Do not share these in chat or GitHub.
+   Keep BILLING_LIVE_ENABLED=false. Set SCHEMA_READY=true only after checking
+   the tables/RPCs through the service API. Import must preserve existing LINE
+   and Supabase environment variables; use the same service credential.
+4. Verify Live prices, restricted API permissions, account activation, payment
+   methods, payout bank requirements and customer portal permissions. Do not
+   make a real payment merely to test permissions. The server supports rk_live
+   and sk_live, but never a key of the wrong mode.
+5. Deploy the reviewed code first while still in test mode. During the switch
+   use a quiet maintenance period: birth data is a migration-time snapshot.
+   Resync any profile edits made after that snapshot before switching accounts.
+6. Enable Live only in a coordinated deployment with BILLING_MODE=live,
+   BILLING_LIVE_SCHEMA_READY=true, BILLING_LIVE_ENABLED=true, the Live keys,
+   three Live prices and an HTTPS BILLING_RETURN_ORIGIN. Test events cannot
+   grant Live rights; fetched payment objects are also mode-checked.
+7. Confirm authenticated account access, prices and portal before opening sales.
+   Any actual-money end-to-end payment requires the owner's explicit consent.
+   Public service.html currently says test billing; update that statement only
+   when Live is enabled. Real payments must not be labeled test in the app UI.
+
+Stop sales safely by BILLING_LIVE_ENABLED=false without changing BILLING_MODE.
+Do not switch back to the Sandbox schema after customers have paid: it would
+hide their real rights. No automatic refunds or dispute reversals are implemented;
+handle these with a reviewed support process before broad public release.
+
+Verification:
+npm test
+npm run build
+node scripts/test-live-isolation.mjs
+The last command uses disposable local PGlite, never Supabase/Stripe:
+npm install --prefix .netlify/sql-qa --no-save --package-lock=false @electric-sql/pglite
+This verifies SQL execution and isolation, not hosted Supabase configuration,
+Live API permissions or actual-money Checkout/webhook end-to-end behavior.

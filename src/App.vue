@@ -1268,7 +1268,6 @@ if (isBlindTestMode) {
 
       <p class="pricing-footnote">ช่วงดูล่วงหน้าเลื่อนตามวันใช้งาน ขณะสมาชิกยังมีผล เมื่อหมดอายุดูได้เฉพาะวันนี้ โดยไม่ลบข้อมูลที่บันทึกไว้</p>
       <BillingPanel :id-token="lineSession.idToken || ''" :product="selectedBillingProduct" :local="lineSession.status === 'local'" :advance-starts-at="selectedBillingProduct === 'yearly' && accessPlan === 'premium' && billingCycle === 'monthly' && new Date(premiumExpiresAt) > calendarNow ? premiumExpiresAt : null" :promptpay-only="accessPlan === 'premium' && billingPaymentMethod === 'promptpay' && selectedBillingProduct === billingCycle && new Date(premiumExpiresAt) > calendarNow" @back="selectedBillingProduct = null; pricingNotice = ''" @refresh-account="refreshBillingAccount" />
-      <p class="pricing-footnote">Stripe อยู่ในโหมดทดสอบ ยังไม่เปิดรับเงินจริง</p>
     </section>
 
     <section v-if="!personalMonth && !isBlindTestMode && activeView === 'calendar' && !editingBirthProfile" class="calendar-section" aria-live="polite">

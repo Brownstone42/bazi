@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { accountSchema } from '../lib/billing-mode.mjs'
 import { buildComparisonReading } from '../../src/services/comparison-reading.js'
 import { calculateChart, calculateChartWithOptionalTime } from '../../src/services/bazi.js'
 
@@ -14,7 +15,8 @@ export function requiredEnvironment() {
   const config = {
     channelId: process.env.LINE_CHANNEL_ID,
     supabaseUrl: process.env.SUPABASE_URL,
-    secretKey: process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
+    secretKey: process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY,
+    schema: accountSchema()
   }
   const missing = Object.entries(config).filter(([, value]) => !value).map(([key]) => key)
   if (missing.length) throw new Error(`Missing server configuration: ${missing.join(', ')}`)
@@ -36,13 +38,15 @@ export async function verifyLineIdToken(idToken, channelId, fetchImpl = fetch) {
 }
 
 export function createSupabaseRest(config, fetchImpl = fetch) {
-  return async function request(path, { method = 'GET', body, prefer } = {}) {
+  const request = async function (path, { method = 'GET', body, prefer } = {}) {
     const response = await fetchImpl(`${config.supabaseUrl}/rest/v1/${path}`, {
       method,
       headers: {
         apikey: config.secretKey,
         ...(config.secretKey.startsWith('eyJ') ? { authorization: `Bearer ${config.secretKey}` } : {}),
         'content-type': 'application/json',
+        'Accept-Profile': config.schema || 'public',
+        'Content-Profile': config.schema || 'public',
         ...(prefer ? { prefer } : {})
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) })
@@ -55,6 +59,8 @@ export function createSupabaseRest(config, fetchImpl = fetch) {
     const responseText = await response.text()
     return responseText ? JSON.parse(responseText) : null
   }
+  request.schema = config.schema || 'public'
+  return request
 }
 
 function isoBirthDate(value) {
@@ -131,6 +137,14 @@ function firstDayOfCurrentMonth(now = new Date()) {
 }
 
 export async function readAccount(rest, userId, now = new Date()) {
+  if (rest.schema === 'bazi_live') {
+    // One row lock covers activation, expiry and monthly reset, preventing a
+    // stale account refresh from overwriting a concurrent paid renewal or usage.
+    const entitlement = await rest('rpc/refresh_account_entitlement', { method: 'POST', body: { p_user_id: userId } })
+    const [birthProfile] = await rest(`birth_profiles?user_id=eq.${encodeURIComponent(userId)}&select=*&limit=1`)
+    const comparisonReports = await rest(`comparison_reports?user_id=eq.${encodeURIComponent(userId)}&select=*&order=created_at.desc&limit=20`)
+    return { entitlement, birthProfile: birthProfile ?? null, comparisonReports }
+  }
   let [entitlement] = await rest(`user_entitlements?user_id=eq.${encodeURIComponent(userId)}&select=*&limit=1`)
   if (entitlement?.next_membership && new Date(entitlement.next_membership.startsAt) <= now) entitlement = await rest('rpc/activate_annual_membership', { method: 'POST', body: { p_user_id: userId } })
   const currentPeriod = firstDayOfCurrentMonth(now)

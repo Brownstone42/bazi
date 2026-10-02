@@ -5,6 +5,16 @@ import { describe, expect, it } from 'vitest'
 const page = name => new JSDOM(readFileSync(`public/${name}`, 'utf8')).window.document
 
 describe('published policy pages', () => {
+  it('provides accessible help with correct package limits, troubleshooting and working anchors', () => {
+    const document = page('help.html')
+    expect(document.documentElement.lang).toBe('th')
+    expect(document.querySelector('meta[name="viewport"]')).not.toBeNull()
+    expect(document.querySelectorAll('details').length).toBeGreaterThan(10)
+    for (const detail of document.querySelectorAll('details')) expect(detail.firstElementChild.tagName).toBe('SUMMARY')
+    for (const link of document.querySelectorAll('a[href^="#"]')) expect(document.getElementById(link.getAttribute('href').slice(1))).not.toBeNull()
+    for (const text of ['149 บาท', '999 บาท', '59 บาท', '30 วัน', '90 วัน', '5 คน', '10 คน', 'ไม่ทบ', 'ตรวจสอบการชำระและสิทธิ์อีกครั้ง', 'อย่าเพิ่งซื้อซ้ำ', '1 ครั้งต่อ 30 วัน', 'ไม่หักสิทธิ์เพิ่ม']) expect(document.body.textContent).toContain(text)
+    expect(page('service.html').querySelector('a[href="/help.html"]')).not.toBeNull()
+  })
   it.each(['terms.html', 'privacy.html'])('%s contains public text, contact and valid local anchors', name => {
     const document = page(name)
     expect(document.documentElement.lang).toBe('th')

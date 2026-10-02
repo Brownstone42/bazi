@@ -12,6 +12,7 @@ import PersonalDayReading from './components/PersonalDayReading.vue'
 import MembershipSummary from './components/MembershipSummary.vue'
 import BillingPanel from './components/BillingPanel.vue'
 import PackageSelection from './components/PackageSelection.vue'
+import WelcomeOverview from './components/WelcomeOverview.vue'
 import { BIRTH_EDIT_INTERVAL, birthProfileChanged, birthEditBlocked, formatBirthEditDate } from './services/profile-policy'
 import { loadComparisonPeople, saveComparisonPerson } from './services/comparison-people'
 import './styles/identity.css'
@@ -119,6 +120,11 @@ const timezoneOptions = (() => {
   ]
 })()
 const chart = ref(null)
+const birthForm = ref(null)
+function startWelcomeProfile() {
+  birthForm.value?.scrollIntoView?.({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
+  birthForm.value?.focus({ preventScroll: true })
+}
 const editingBirthProfile = ref(window.location.hash === '#account')
 const profileSaving = ref(false)
 const profileVersion = ref(null)
@@ -819,6 +825,8 @@ if (isBlindTestMode) {
       </div>
     </header>
 
+    <WelcomeOverview v-if="!isBlindTestMode && accountReady && !chart" @start="startWelcomeProfile" />
+
     <div v-if="!isBlindTestMode && !accountReady" class="account-loading" role="status">
       <p>{{ accountSync.error || (['error', 'unconfigured', 'unauthenticated'].includes(lineSession.status) ? 'ยังเปิดบัญชีไม่ได้ กรุณาลองเชื่อมต่ออีกครั้ง' : 'กำลังเปิดข้อมูลของคุณ…') }}</p>
       <button v-if="accountSync.error || ['error', 'unconfigured', 'unauthenticated'].includes(lineSession.status)" type="button" @click="connectLineAccount">ลองอีกครั้ง</button>
@@ -894,9 +902,9 @@ if (isBlindTestMode) {
       @packages="openPricing()"
     />
     <section v-if="isBlindTestMode || (accountReady && activeView === 'profile' && (editingBirthProfile || !chart))" class="workspace" :class="{ 'profile-workspace': !isBlindTestMode }">
-      <form class="form-card" @submit.prevent="submit">
+      <form ref="birthForm" class="form-card" tabindex="-1" @submit.prevent="submit">
         <div class="section-heading">
-          <span class="step">01</span>
+          <span v-if="isBlindTestMode" class="step">01</span>
           <div>
             <h2>{{ isBlindTestMode ? 'ข้อมูลผู้ทดสอบ' : chart ? 'โปรไฟล์ของฉัน' : 'เริ่มต้นด้วยข้อมูลวันเกิดของคุณ' }}</h2>
             <p>{{ isBlindTestMode ? 'ระบบจะใช้ข้อมูลคำนวณคำตอบ แต่ยังไม่แสดงผลให้เห็น' : chart ? 'แก้ข้อมูลเกิดแล้วบันทึก เพื่ออัปเดตคำอ่านของคุณ' : 'กรอกวัน เวลา และเขตเวลาที่เกิดก่อน เพื่อเปิดคำอ่านปาจื้อของคุณ' }}</p>
@@ -1457,6 +1465,7 @@ if (isBlindTestMode) {
 
     </section>
     <footer class="service-links" style="text-align: center; padding: 24px 16px; font-size: .85rem;">
+      <a href="/help.html">วิธีใช้ / คำถามที่พบบ่อย</a>
       <a href="/service.html">ข้อมูลบริการ · บริษัท จีเนียส พิคเจอร์ จำกัด</a>
       <a href="/terms.html">เงื่อนไขบริการ</a>
       <a href="/privacy.html">ความเป็นส่วนตัว</a>

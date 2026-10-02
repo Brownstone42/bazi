@@ -12,4 +12,11 @@ ul { padding-left: 24px; }
 .note, footer { color: #736657; font-size: .85rem; }
 footer { margin-top: 24px; }
 a:focus-visible { outline: 3px solid #8ba184; outline-offset: 4px; }
+details { margin: 12px 0; border: 1px solid #e2d9ca; border-radius: 12px; background: #fffaf2; }
+summary { min-height: 48px; padding: 14px 18px; color: #493f35; font-weight: bold; cursor: pointer; }
+summary:focus-visible { outline: 3px solid #8ba184; outline-offset: 3px; border-radius: 12px; }
+details[open] summary { border-bottom: 1px solid #e2d9ca; }
+details p { padding: 0 18px; }
+details p:last-child { margin-bottom: 18px; }
+h2[id] { scroll-margin-top: 20px; }
 @media (max-width: 600px) { main { padding: 16px 12px 36px; } article { padding: 22px 18px; } }

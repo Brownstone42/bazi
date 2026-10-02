@@ -38,9 +38,26 @@ afterEach(() => {
 })
 
 describe('main navigation with an isolated mock account', () => {
+  it('shows the introduction only for accounts without a birth profile and starts the form without saving', async () => {
+    syncLineAccount.mockResolvedValue({ ...account(), birthProfile: null })
+    wrapper = shallowMount(App)
+    await flushPromises()
+    const welcome = wrapper.getComponent({ name: 'WelcomeOverview' })
+    const form = wrapper.get('.form-card')
+    const focus = vi.spyOn(form.element, 'focus')
+    welcome.vm.$emit('start')
+    await flushPromises()
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true })
+    expect(wrapper.find('.form-card .step').exists()).toBe(false)
+    expect(syncLineAccount).toHaveBeenCalledTimes(1)
+    expect(reserveComparison).not.toHaveBeenCalled()
+    expect(fetchPersonalCalendar).not.toHaveBeenCalled()
+  })
+
   it('opens the birth profile without saving anything and exposes support links', async () => {
     wrapper = shallowMount(App)
     await flushPromises()
+    expect(wrapper.findComponent({ name: 'WelcomeOverview' }).exists()).toBe(false)
     await wrapper.get('.account-profile-button').trigger('click')
     expect(wrapper.get('.form-card').text()).toContain('โปรไฟล์ของฉัน')
     expect(wrapper.text()).toContain('1 ครั้งต่อ 30 วัน')
@@ -49,6 +66,7 @@ describe('main navigation with an isolated mock account', () => {
     expect(wrapper.get('a[href="/service.html#contact-title"]').text()).toContain('แจ้งปัญหา')
     expect(wrapper.get('.service-links a[href="/terms.html"]').exists()).toBe(true)
     expect(wrapper.get('.service-links a[href="/privacy.html"]').exists()).toBe(true)
+    expect(wrapper.get('.service-links a[href="/help.html"]').exists()).toBe(true)
   })
 
   it('opens an existing comparison with its total score, highlights selection and hides all entry controls', async () => {

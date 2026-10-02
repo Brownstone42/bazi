@@ -4,6 +4,11 @@ import MembershipSummary from './MembershipSummary.vue'
 
 const now = new Date('2026-09-28T05:00:00Z')
 describe('membership summary', () => {
+  it('does not label a real account as test billing', () => {
+    const wrapper = mount(MembershipSummary, { props: { now } })
+    expect(wrapper.text()).not.toContain('โหมดทดสอบ')
+    expect(wrapper.text()).toContain('ดูประวัติการซื้อและจัดการต่ออายุ')
+  })
   it('shows prepaid annual separately without promising immediate annual rights or a return to Free after monthly', () => {
     const wrapper = mount(MembershipSummary, { props: { planId: 'premium', billingCycle: 'monthly', paymentMethod: 'card', renewalCanceled: true, expiresAt: '2026-11-01T05:00:00Z', now, nextMembership: { startsAt: '2026-11-01T05:00:00Z', expiresAt: '2027-11-01T05:00:00Z', paymentMethod: 'promptpay' } } })
     expect(wrapper.text()).toContain('Premium รายเดือน')

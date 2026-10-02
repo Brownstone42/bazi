@@ -55,7 +55,7 @@ const expiryLabel = computed(() => {
       <article><span>โควตาเปรียบเทียบคงเหลือ</span><strong>{{ expired ? 'รออัปเดตสิทธิ์ Free' : `${quota.includedRemaining} / ${quota.includedLimit} คน` }}</strong><small v-if="premium">เริ่มโควตาใหม่วันที่ 1 ของทุกเดือน · ไม่สะสมข้ามเดือน</small><small v-else-if="!expired">สิทธิ์ฟรีครั้งแรก ไม่รีเซ็ตรายเดือน</small></article>
       <article><span>เครดิตซื้อเพิ่มคงเหลือ</span><strong>{{ quota.purchasedRemaining }} คน</strong><small>ไม่หมดอายุ · ใช้โควตาแพ็กเกจก่อน</small></article>
     </div>
-    <p class="membership-note">ดูประวัติการซื้อและจัดการต่ออายุได้ที่หน้าแพ็กเกจ · ระบบชำระเงินยังเป็นโหมดทดสอบ</p>
+    <p class="membership-note">ดูประวัติการซื้อและจัดการต่ออายุได้ที่หน้าแพ็กเกจ</p>
   </section>
 </template>
 

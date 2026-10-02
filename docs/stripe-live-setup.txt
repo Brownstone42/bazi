@@ -1,4 +1,11 @@
-LIVE BILLING PREPARATION — NOT ACTIVATED
+LIVE BILLING — PRODUCTION ACTIVATED 2026-10-02
+
+Production is configured with Live keys/prices and all three Live mode flags.
+Hosted service page, billing authentication guard, unsigned webhook rejection,
+and a signed non-financial Live diagnostic passed. The diagnostic does not
+verify delivery from Stripe or an actual Checkout/payment. Owner testing of
+authenticated Checkout, portal and real payment delivery remains pending.
+Latest profile sync copied identities/birth data only; no test paid rights.
 
 Current Sandbox remains in Supabase public. Live uses bazi_live exclusively.
 The migration copies account identity and birth profiles, including their edit
@@ -31,8 +38,8 @@ Owner setup (do not replace live credentials before completing these steps):
    grant Live rights; fetched payment objects are also mode-checked.
 7. Confirm authenticated account access, prices and portal before opening sales.
    Any actual-money end-to-end payment requires the owner's explicit consent.
-   Public service.html currently says test billing; update that statement only
-   when Live is enabled. Real payments must not be labeled test in the app UI.
+   Public service.html now uses mode-neutral payment wording. Real payments
+   must not be labeled test in the app UI.
 
 Stop sales safely by BILLING_LIVE_ENABLED=false without changing BILLING_MODE.
 Do not switch back to the Sandbox schema after customers have paid: it would
@@ -43,6 +50,7 @@ Verification:
 npm test
 npm run build
 node scripts/test-live-isolation.mjs
+node --env-file=.env.stripe-live-import scripts/check-live-deployment.mjs
 The last command uses disposable local PGlite, never Supabase/Stripe:
 npm install --prefix .netlify/sql-qa --no-save --package-lock=false @electric-sql/pglite
 This verifies SQL execution and isolation, not hosted Supabase configuration,

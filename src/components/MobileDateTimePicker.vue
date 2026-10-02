@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -19,6 +19,9 @@ const hours = Array.from({ length: 24 }, (_, value) => value)
 const minutes = Array.from({ length: 60 }, (_, value) => value)
 
 const isOpen = ref(false)
+const dialogId = useId()
+const dialog = ref(null)
+const trigger = ref(null)
 const day = ref(1)
 const month = ref(1)
 const year = ref(currentYear - 30)
@@ -41,14 +44,35 @@ const displayValue = computed(() => {
 watch([month, year], () => {
   if (day.value > days.value.length) day.value = days.value.length
 })
-watch(isOpen, (open) => {
+watch(isOpen, async (open) => {
   if (open) {
     previousBodyOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
   } else {
     document.body.style.overflow = previousBodyOverflow
   }
+  await nextTick()
+  if (open && isOpen.value) dialog.value?.querySelector('select')?.focus()
+  else if (!isOpen.value && trigger.value?.isConnected) trigger.value.focus()
 })
+
+function handleDialogKey(event) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closePicker()
+  } else if (event.key === 'Tab') {
+    const controls = [...dialog.value.querySelectorAll('button, select')]
+    const first = controls[0]
+    const last = controls.at(-1)
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
+}
 
 function openPicker() {
   if (props.type === 'date') {
@@ -92,7 +116,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="mobile-date-time-picker">
-    <button type="button" class="mobile-picker-trigger" :class="{ empty: !modelValue }" @click="openPicker">
+    <button ref="trigger" type="button" class="mobile-picker-trigger" :class="{ empty: !modelValue }" aria-haspopup="dialog" :aria-expanded="isOpen" :aria-controls="isOpen ? dialogId : undefined" @click="openPicker">
       <span>{{ displayValue }}</span>
       <i :class="type === 'date' ? 'pi pi-calendar' : 'pi pi-clock'" />
     </button>
@@ -100,7 +124,7 @@ onBeforeUnmount(() => {
     <Teleport to="body">
       <Transition name="mobile-sheet">
         <div v-if="isOpen" class="mobile-picker-overlay" role="presentation" @click.self="closePicker">
-          <section class="mobile-picker-sheet" role="dialog" aria-modal="true" :aria-label="type === 'date' ? 'เลือกวันเกิด' : 'เลือกเวลาเกิด'">
+          <section :id="dialogId" ref="dialog" class="mobile-picker-sheet" role="dialog" aria-modal="true" :aria-label="type === 'date' ? 'เลือกวันเกิด' : 'เลือกเวลาเกิด'" @keydown="handleDialogKey">
             <div class="mobile-picker-handle" />
             <div class="mobile-picker-heading">
               <div>

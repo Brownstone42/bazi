@@ -1112,12 +1112,14 @@ if (isBlindTestMode) {
             v-for="report in savedComparisons"
             :key="report.id"
             type="button"
+            class="saved-person-option"
             :class="{ pending: !report.result }"
             :aria-pressed="activeComparisonReport?.id === report.id"
             @click="openSavedComparison(report)"
           >
             <span class="saved-comparison-icon"><i class="pi pi-users" /></span>
             <span><strong>{{ report.name || 'อีกฝ่าย' }}</strong><small>{{ comparisonContextLabel(report) }}</small><small v-if="report.isStale" class="stale-report-label">ข้อมูลเก่า · {{ report.ownerProfileVersion ? `โปรไฟล์รุ่น ${report.ownerProfileVersion}` : 'ไม่ทราบข้อมูลเกิดต้นทาง' }}</small></span>
+            <span class="saved-person-score"><strong>{{ report.result?.score?.value ?? '—' }}<small>/100</small></strong><small>คะแนนรวม</small></span>
             <i :class="report.result ? 'pi pi-chevron-right' : 'pi pi-refresh'" />
           </button>
         </div>
@@ -1453,8 +1455,10 @@ if (isBlindTestMode) {
       </article>
 
     </section>
-    <footer style="text-align: center; padding: 24px 16px; font-size: .85rem;">
+    <footer class="service-links" style="text-align: center; padding: 24px 16px; font-size: .85rem;">
       <a href="/service.html">ข้อมูลบริการ · บริษัท จีเนียส พิคเจอร์ จำกัด</a>
+      <a href="/service.html#refund-title">การยกเลิกและคืนเงิน</a>
+      <a href="/service.html#contact-title">ติดต่อ / แจ้งปัญหา</a>
     </footer>
   </main>
 </template>

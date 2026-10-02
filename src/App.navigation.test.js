@@ -47,6 +47,8 @@ describe('main navigation with an isolated mock account', () => {
     expect(syncLineAccount).toHaveBeenCalledTimes(1)
     expect(wrapper.get('a[href="/service.html#refund-title"]').text()).toContain('คืนเงิน')
     expect(wrapper.get('a[href="/service.html#contact-title"]').text()).toContain('แจ้งปัญหา')
+    expect(wrapper.get('.service-links a[href="/terms.html"]').exists()).toBe(true)
+    expect(wrapper.get('.service-links a[href="/privacy.html"]').exists()).toBe(true)
   })
 
   it('opens an existing comparison with its total score, highlights selection and hides all entry controls', async () => {

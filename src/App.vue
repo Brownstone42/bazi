@@ -959,6 +959,7 @@ if (isBlindTestMode) {
           <span v-if="nextBirthEditAt && lineSession.status !== 'local'"> · แก้ไขได้อีกครั้ง {{ formatBirthEditDate(nextBirthEditAt) }}</span>
         </p>
         <p v-if="error" class="comparison-error" role="alert">{{ error }}</p>
+        <p class="comparison-topic-hint">อ่านรายละเอียดการใช้ข้อมูลเกิดและช่องทางขอลบได้ที่ <a href="/privacy.html" target="_blank" rel="noopener">นโยบายความเป็นส่วนตัว</a></p>
         <Button
           type="submit"
           :label="isBlindTestMode ? 'เริ่มการทดสอบ' : chart ? 'บันทึกโปรไฟล์' : 'บันทึกและดูปาจื้อของฉัน'"
@@ -1146,7 +1147,7 @@ if (isBlindTestMode) {
       <form v-if="!selectedComparisonPerson && !(activeComparisonReport && comparisonResult)" class="comparison-form" @submit.prevent="submitComparison">
         <div class="comparison-form-heading">
           <span class="step">01</span>
-          <div><h3>ข้อมูลของอีกฝ่าย</h3><p>เวลาเกิดเว้นว่างได้หากไม่ทราบ</p></div>
+          <div><h3>ข้อมูลของอีกฝ่าย</h3><p>เวลาเกิดเว้นว่างได้หากไม่ทราบ</p><p>กรุณาขออนุญาตอีกฝ่ายและให้เขาอ่าน <a href="/privacy.html#others" target="_blank" rel="noopener">รายละเอียดการใช้ข้อมูล</a> ก่อนกรอก</p></div>
         </div>
 
         <div class="comparison-fields">
@@ -1457,6 +1458,8 @@ if (isBlindTestMode) {
     </section>
     <footer class="service-links" style="text-align: center; padding: 24px 16px; font-size: .85rem;">
       <a href="/service.html">ข้อมูลบริการ · บริษัท จีเนียส พิคเจอร์ จำกัด</a>
+      <a href="/terms.html">เงื่อนไขบริการ</a>
+      <a href="/privacy.html">ความเป็นส่วนตัว</a>
       <a href="/service.html#refund-title">การยกเลิกและคืนเงิน</a>
       <a href="/service.html#contact-title">ติดต่อ / แจ้งปัญหา</a>
     </footer>

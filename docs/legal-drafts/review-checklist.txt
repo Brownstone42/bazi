@@ -1,0 +1,50 @@
+LEGAL PAGE OPERATIONAL FOLLOW-UP
+Owner authorized publication on 2026-10-02. Public text lives in
+public/terms.html, public/privacy.html and public/legal.css, version 2026-10-02.
+This internal checklist is not copied by Vite and is not a public policy page.
+Owner approved company address and email-based erasure requests, retaining
+necessary billing records separately. No actual user data has been erased.
+
+Operational follow-ups (publication alone does not complete these):
+1. Owner authorized publishing the text with effective date 2026-10-02. Obtain Thai legal
+   review where appropriate; a page is not certification of PDPA compliance.
+2. Decide eligibility/minor handling; verify consent requirements rather than
+   inventing an arbitrary age restriction. Do not collect extra identity data
+   merely for the sake of a policy paragraph.
+3. Establish the lawful basis and direct/indirect notice procedure for the
+   OTHER PERSON in comparisons. The purchaser's contract/checkbox cannot
+   substitute for another person's consent. Assess PDPA sections 23–25.
+4. Verify Supabase project region, processor agreements, cross-border transfer
+   basis, hosting/log and backup retention, and access controls with vendors.
+5. Have the accountant define retention for billing/accounting records and
+   the operator define logs/backups retention and periodic necessity review.
+   The draft promises no automatic indefinite retention of unnecessary data.
+6. Design and test a manual access/rectification/erasure workflow with a mock
+   account: identity verification, request log/deadline, third-party request
+   handling, scope approval, separated billing records, backups/providers,
+   completion response. Never use a broad DELETE against app_users: foreign
+   keys and billing dependencies require individual review. No deletion SQL
+   is supplied by this task. Access-copy requests under section 30 have a
+   deadline; do not delay the legal clock merely until identity review ends.
+7. Coordinate erasure with live card subscriptions. Erasure is not automatic
+   cancellation/refund. Explain continuing charges and retained rights before
+   owner-authorized handling. Keep payment evidence without natal data.
+8. Decide how the pages are shown before first birth-data submission and
+   Checkout, and how assent/version records are captured. Do not treat one
+   general terms checkbox as blanket consent to all privacy processing.
+9. Review service continuity/refund support. Public links were added to the
+   service page, App footer, birth input, comparison input and BillingPanel.
+   No automated erasure or legal assent database was added by publication.
+
+Evidence reviewed (2026-10-02):
+App and netlify/functions/line-session.mjs, billing-session.mjs; SQL tables;
+liff-auth.js, local-account.js, comparison-people.js; existing service.html.
+Official legal source:
+https://law.prd.go.th/th/content/page/index/id/234607
+Vendor sources:
+https://stripe.com/privacy
+https://www.netlify.com/privacy/
+https://www.lycorp.co.jp/en/company/privacypolicy/
+https://supabase.com/docs/guides/platform/regions
+
+No assertion that a paid transaction or privacy request has been tested.

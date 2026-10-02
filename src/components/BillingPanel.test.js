@@ -55,6 +55,8 @@ describe('billing panel', () => {
     expect(billingRequest).toHaveBeenCalledTimes(1)
     expect(billingRequest).toHaveBeenCalledWith({ idToken: 'token', action: 'status' })
     expect(wrapper.get('.price-summary').text()).toContain('999 บาท')
+    expect(wrapper.get('a[href="/terms.html"]').attributes('rel')).toBe('noopener')
+    expect(wrapper.get('a[href="/privacy.html"]').exists()).toBe(true)
     expect(wrapper.get('.price-summary').text()).toContain('ไม่ต่ออายุอัตโนมัติ')
     expect(wrapper.get('.pay-button').text()).toContain('QR PromptPay')
     await wrapper.findAll('.method')[1].trigger('click')

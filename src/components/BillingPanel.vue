@@ -76,6 +76,7 @@ watch(() => props.product, () => { paymentMethod.value = 'promptpay'; error.valu
         <p>รายปีเริ่ม {{ dateLabel(advanceStartsAt) }} หลังรายเดือนสิ้นสุด โดยยังใช้สิทธิ์รายเดือนจนถึงวันนั้น ระบบจะยกเลิกต่ออายุรายเดือนเมื่อชำระสำเร็จ</p>
         <p v-if="paymentMethod === 'card'">ปีแรกชำระครบแล้ว จะเรียกเก็บรายปีครั้งถัดไปเมื่อสิ้นสุดปีที่ซื้อไว้ ไม่เรียกเก็บซ้ำในวันเริ่มรายปี</p>
       </div>
+      <p class="legal-links">โปรดอ่าน <a href="/terms.html" target="_blank" rel="noopener">เงื่อนไขบริการ</a> และ <a href="/privacy.html" target="_blank" rel="noopener">นโยบายความเป็นส่วนตัว</a> ก่อนชำระเงิน</p>
       <button class="pay-button" type="button" :disabled="busy || local || !status?.enabled" @click="openStripe('checkout')">{{ busy ? 'กำลังทำรายการ…' : paymentMethod === 'promptpay' ? 'ไปสแกน QR PromptPay' : 'ไปชำระด้วยบัตร' }}</button>
     </div>
     <template v-if="status?.enabled && !product">
@@ -120,6 +121,8 @@ button.method { background: #fffcf7; color: #493f35; border: 2px solid #ded8cb; 
 button.method[aria-pressed="true"] { background: #e8efdf; border-color: #365640; }
 .method i, .method strong { display: block; margin-bottom: 8px; }
 .pay-button { width: 100%; margin-top: 12px; }
+.legal-links a { color: #365640; text-decoration: underline; }
+.legal-links a:focus-visible { outline: 3px solid #8ba184; outline-offset: 3px; }
 .price-summary { margin: 16px 0; padding: 16px; background: #fffcf7; border-radius: 12px; }
 .price-summary span, .price-summary strong { display: block; }
 .price-summary strong { margin-top: 6px; font-size: 1.6rem; }

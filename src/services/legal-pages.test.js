@@ -5,6 +5,10 @@ import { describe, expect, it } from 'vitest'
 const page = name => new JSDOM(readFileSync(`public/${name}`, 'utf8')).window.document
 
 describe('published policy pages', () => {
+  it('uses the Diti Data title in the main app', () => {
+    const document = new JSDOM(readFileSync('index.html', 'utf8')).window.document
+    expect(document.title).toBe('Diti Data')
+  })
   it('provides accessible help with correct package limits, troubleshooting and working anchors', () => {
     const document = page('help.html')
     expect(document.documentElement.lang).toBe('th')

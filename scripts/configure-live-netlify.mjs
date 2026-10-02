@@ -16,7 +16,14 @@ try {
       method, headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' },
       ...(body ? { body: JSON.stringify(body) } : {})
     })
-    if (!response.ok) throw new Error('Netlify request failed')
+    if (!response.ok) {
+      const problem = await response.text()
+      // Only fixed diagnostic booleans; provider bodies may contain secrets.
+      console.error(JSON.stringify({ status: response.status, scopeIssue: /scope/i.test(problem),
+        contextIssue: /context/i.test(problem), planIssue: /plan|upgrade/i.test(problem),
+        alreadyExists: /already exist/i.test(problem) }))
+      throw new Error('Netlify request failed')
+    }
     return response.status === 204 ? null : response.json()
   }
   phase = 'site validation'
@@ -33,7 +40,12 @@ try {
     if (current.some(entry => entry.key === key)) {
       await api(base + '/' + key + query, 'PATCH', { context: 'production', value: desired[key] })
     } else {
-      await api(base + query, 'POST', [{ key, scopes: ['functions'], values: [{ context: 'production', value: desired[key] }] }])
+      // Only these non-secret mode switches can be created across all scopes
+      // on the Free plan. NEVER broaden scopes for an API/webhook key.
+      if (!['BILLING_LIVE_SCHEMA_READY', 'BILLING_LIVE_ENABLED', 'BILLING_MODE'].includes(key)) {
+        throw new Error('Secret/configuration variable must already exist with approved scopes')
+      }
+      await api(base + query, 'POST', [{ key, values: [{ context: 'production', value: desired[key] }] }])
     }
     console.log('Configured production: ' + key)
   }

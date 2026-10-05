@@ -913,7 +913,30 @@ if (isBlindTestMode) {
       :assessment="strength"
       :reading="reading"
       :input="calculatedInput"
-    />
+    >
+      <template #details>
+        <section class="reading-section identity-extended">
+          <div class="insight-grid">
+            <article v-for="item in reading.lifeAreas" :key="item.id" class="insight-card life-area-card">
+              <div class="insight-icon"><i class="pi" :class="item.icon" /></div>
+              <h3>{{ item.title }}</h3>
+              <strong class="life-verdict">{{ item.verdict }}</strong>
+              <p>{{ item.text }}</p>
+              <div v-if="item.recommendations" class="career-recommendations">
+                <span>แนวอาชีพที่ควรพิจารณาเป็นอันดับต้น</span>
+                <div><b v-for="role in item.recommendations" :key="role">{{ role }}</b></div>
+              </div>
+              <p v-if="item.environment" class="work-environment"><strong>สภาพงานที่ส่งเสริม:</strong> {{ item.environment }}</p>
+              <div class="life-actions">
+                <div><span><i class="pi pi-check-circle" /> ควรทำ</span><p>{{ item.shouldDo }}</p></div>
+                <div><span><i class="pi pi-times-circle" /> ควรหลีกเลี่ยง</span><p>{{ item.shouldAvoid }}</p></div>
+              </div>
+              <small v-if="item.disclaimer" class="life-disclaimer">{{ item.disclaimer }}</small>
+            </article>
+          </div>
+        </section>
+      </template>
+    </IdentityReading>
     <MembershipSummary
       v-if="!isBlindTestMode && accountReady && chart && activeView === 'profile' && editingBirthProfile"
       :plan-id="accessPlan"
@@ -1113,27 +1136,6 @@ if (isBlindTestMode) {
           </div>
         </template>
       </section>
-    </section>
-
-    <section v-if="reading && !isBlindTestMode && activeView === 'profile' && !editingBirthProfile" class="reading-section identity-extended">
-      <div class="insight-grid">
-        <article v-for="item in reading.lifeAreas" :key="item.id" class="insight-card life-area-card">
-          <div class="insight-icon"><i class="pi" :class="item.icon" /></div>
-          <h3>{{ item.title }}</h3>
-          <strong class="life-verdict">{{ item.verdict }}</strong>
-          <p>{{ item.text }}</p>
-          <div v-if="item.recommendations" class="career-recommendations">
-            <span>แนวอาชีพที่ควรพิจารณาเป็นอันดับต้น</span>
-            <div><b v-for="role in item.recommendations" :key="role">{{ role }}</b></div>
-          </div>
-          <p v-if="item.environment" class="work-environment"><strong>สภาพงานที่ส่งเสริม:</strong> {{ item.environment }}</p>
-          <div class="life-actions">
-            <div><span><i class="pi pi-check-circle" /> ควรทำ</span><p>{{ item.shouldDo }}</p></div>
-            <div><span><i class="pi pi-times-circle" /> ควรหลีกเลี่ยง</span><p>{{ item.shouldAvoid }}</p></div>
-          </div>
-          <small v-if="item.disclaimer" class="life-disclaimer">{{ item.disclaimer }}</small>
-        </article>
-      </div>
     </section>
 
     <section v-if="chart && !isBlindTestMode && activeView === 'compare'" class="comparison-section">

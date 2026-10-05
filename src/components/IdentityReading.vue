@@ -1,8 +1,11 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, useId, watch } from 'vue'
 import { buildIdentity } from '../services/identity'
 import { stemThai, branchThaiLabel, elementThaiLabel } from '../services/bazi'
 const props = defineProps({ chart: { type: Object, required: true }, assessment: { type: Object, required: true }, input: { type: Object, required: true }, reading: { type: Object, required: true } })
+const expanded = ref(false)
+const detailsId = useId()
+watch(() => [props.chart, props.input.birthDate, props.input.birthTime, props.input.gender, props.input.timezoneId], () => { expanded.value = false })
 const identity = computed(() => buildIdentity(props.chart, props.assessment))
 const pillars = computed(() => [
   { key: 'hour', title: 'ยาม' }, { key: 'day', title: 'วัน' },
@@ -47,8 +50,16 @@ const gradient = computed(() => {
       </div>
     </section>
 
+    <button type="button" class="identity-more-button" :aria-expanded="expanded" :aria-controls="detailsId" @click="expanded = !expanded">
+      {{ expanded ? 'ซ่อนรายละเอียด' : 'ดูเพิ่มเติม' }}
+      <i :class="expanded ? 'pi pi-chevron-up' : 'pi pi-chevron-down'" aria-hidden="true" />
+    </button>
+
+    <div v-if="expanded" :id="detailsId" class="identity-details">
     <section class="identity-block">
       <section class="identity-all"><h4>ความถนัดทั้ง 10 ด้าน</h4><div class="identity-all-grid"><article v-for="talent in identity.talents" :key="talent.god"><div class="identity-bar-row"><div><strong>{{ talent.title }}</strong><b>{{ talent.share }}%</b></div><div class="identity-bar"><span :style="{ width: talent.share + '%' }" /></div></div><p>{{ talent.weight ? talent.description : 'ด้านนี้ไม่ปรากฏในองค์ประกอบที่นำมานับ ไม่ได้หมายความว่าคุณพัฒนาทักษะนี้ไม่ได้' }}</p></article></div></section>
     </section>
+    <slot name="details" />
+    </div>
   </section>
 </template>

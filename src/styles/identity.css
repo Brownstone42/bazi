@@ -15,6 +15,8 @@
 .identity-orbit span:nth-child(2) { inset: 35px; }.identity-orbit span:nth-child(3) { inset: 70px; }
 .identity-orbit i { position: absolute; top: 140px; left: 140px; font-size: 50px; color: #ffdfa7; }
 .identity-block { margin-top: 38px; }
+.identity-more-button { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 48px; margin-top: 24px; padding: 12px 20px; border: 1px solid #741b28; border-radius: 12px; background: #741b28; color: #fffaf3; font: inherit; cursor: pointer; }
+.identity-more-button:focus-visible { outline: 3px solid #b69069; outline-offset: 3px; }
 .identity-heading { margin-bottom: 20px; }.identity-heading > span { color: #977651; font-size: .72rem; font-weight: 700; }
 .identity-heading h3, .identity-career h3 { color: #42252a; font-size: 1.3rem; margin: 8px 0; }
 .identity-heading p { font-size: .86rem; line-height: 1.8; color: #807368; margin: 0; }

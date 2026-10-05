@@ -2,6 +2,7 @@ import { flushPromises, shallowMount } from '@vue/test-utils'
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App.vue'
+import IdentityReading from './components/IdentityReading.vue'
 import { initializeLineSession } from './services/liff-auth'
 import { syncLineAccount, reserveComparison } from './services/account-api'
 import { fetchPersonalCalendar } from './services/calendar-api'
@@ -39,6 +40,34 @@ afterEach(() => {
 })
 
 describe('main navigation with an isolated mock account', () => {
+  it('starts natal reading collapsed and toggles talents and all life-area details together without fetching', async () => {
+    wrapper = shallowMount(App, { global: { stubs: { IdentityReading } } })
+    await flushPromises()
+    expect(wrapper.get('.identity-pillars').text()).toContain('แปดอักษรประจำดวง')
+    expect(wrapper.get('.identity-charts').text()).toContain('สัดส่วนธาตุในพื้นดวง')
+    expect(wrapper.get('.identity-charts').text()).toContain('บุคลิก 5 ด้าน')
+    expect(wrapper.find('.identity-all').exists()).toBe(false)
+    expect(wrapper.find('.life-area-card').exists()).toBe(false)
+    const toggle = wrapper.get('.identity-more-button')
+    expect(toggle.text()).toContain('ดูเพิ่มเติม')
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    await toggle.trigger('click')
+    expect(toggle.text()).toContain('ซ่อนรายละเอียด')
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+    expect(wrapper.get('.identity-details').attributes('id')).toBe(toggle.attributes('aria-controls'))
+    expect(wrapper.get('.identity-all').text()).toContain('ความถนัดทั้ง 10 ด้าน')
+    expect(wrapper.findAll('.identity-all-grid article')).toHaveLength(10)
+    expect(wrapper.findAll('.life-area-card').length).toBeGreaterThan(0)
+    await toggle.trigger('click')
+    expect(wrapper.find('.identity-details').exists()).toBe(false)
+    await toggle.trigger('click')
+    await openView('แพ็กเกจ')
+    await openView('พื้นดวง')
+    expect(wrapper.get('.identity-more-button').attributes('aria-expanded')).toBe('false')
+    expect(syncLineAccount).toHaveBeenCalledTimes(1)
+    expect(fetchPersonalCalendar).not.toHaveBeenCalled()
+    expect(reserveComparison).not.toHaveBeenCalled()
+  })
   it('shows membership only in profile, not the package tab', async () => {
     wrapper = shallowMount(App)
     await flushPromises()

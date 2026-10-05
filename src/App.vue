@@ -833,7 +833,6 @@ if (isBlindTestMode) {
           {{ isBlindTestMode ? 'เครื่องมือภายในสำหรับทดสอบคุณภาพคำอ่านโดยไม่เฉลยดวงล่วงหน้า' : 'ค้นพบจุดเด่น เข้าใจวิธีของตัวเอง และนำไปใช้กับชีวิต' }}
         </p>
       </div>
-      <button v-if="!isBlindTestMode && accountReady && profileSaved" type="button" class="account-profile-button" :aria-current="editingBirthProfile ? 'page' : undefined" @click="setActiveView('account')"><i class="pi pi-user-edit" /> โปรไฟล์</button>
     </header>
 
     <WelcomeOverview v-if="!isBlindTestMode && accountReady && !profileSaved" @start="startWelcomeProfile" />
@@ -845,8 +844,8 @@ if (isBlindTestMode) {
     <nav v-if="!isBlindTestMode && accountReady && chart" class="view-navigation" aria-label="เลือกหน้าคำอ่าน">
       <button
         type="button"
-        :class="{ active: activeView === 'profile' }"
-        :aria-current="activeView === 'profile' ? 'page' : undefined"
+        :class="{ active: activeView === 'profile' && !editingBirthProfile }"
+        :aria-current="activeView === 'profile' && !editingBirthProfile ? 'page' : undefined"
         @click="setActiveView('profile')"
       >
         <i class="pi pi-user" />
@@ -888,6 +887,16 @@ if (isBlindTestMode) {
         <i class="pi pi-crown" />
         <span><strong>แพ็กเกจ</strong><small>ดูสิทธิ์ Free และ Premium</small></span>
       </button>
+      <button
+        type="button"
+        class="account-profile-button"
+        :class="{ active: editingBirthProfile }"
+        :aria-current="editingBirthProfile ? 'page' : undefined"
+        @click="setActiveView('account')"
+      >
+        <i class="pi pi-user-edit" />
+        <span><strong>โปรไฟล์</strong><small>ข้อมูลเกิดและบัญชีของฉัน</small></span>
+      </button>
     </nav>
 
     <IdentityReading
@@ -897,7 +906,6 @@ if (isBlindTestMode) {
       :reading="reading"
       :input="calculatedInput"
     />
-    <button v-if="editingBirthProfile && chart && activeView === 'profile'" type="button" class="identity-back" @click="setActiveView('profile')">← กลับไปดูตัวตน</button>
     <MembershipSummary
       v-if="!isBlindTestMode && accountReady && chart && ((activeView === 'profile' && editingBirthProfile) || activeView === 'pricing')"
       :plan-id="accessPlan"

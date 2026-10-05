@@ -31,7 +31,11 @@ export async function initializeLineSession({
     return { status: 'unauthenticated', inClient, profile: null }
   }
 
-  const profile = await client.getProfile()
+  // These claims are for display only. The server still verifies the raw token.
+  const claims = client.getDecodedIDToken?.()
+  const profile = claims?.sub && claims?.name
+    ? { userId: claims.sub, displayName: claims.name, pictureUrl: claims.picture || '' }
+    : await client.getProfile()
   return {
     status: 'authenticated',
     inClient,

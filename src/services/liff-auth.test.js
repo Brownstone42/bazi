@@ -10,6 +10,15 @@ const productionLocation = {
 }
 
 describe('LIFF authentication', () => {
+  it('uses available display claims without a second profile request, retaining the raw token for server verification', async () => {
+    const client = { init: vi.fn(), isInClient: () => true, isLoggedIn: () => true,
+      getIDToken: () => 'raw-token', getDecodedIDToken: () => ({ sub: 'U123', name: 'คุณเอ', picture: 'https://example.com/avatar.jpg' }),
+      getProfile: vi.fn() }
+    const session = await initializeLineSession({ liffId: 'test-liff-id', location: productionLocation, liffClient: client })
+    expect(client.getProfile).not.toHaveBeenCalled()
+    expect(session.idToken).toBe('raw-token')
+    expect(session.profile).toEqual({ userId: 'U123', displayName: 'คุณเอ', pictureUrl: 'https://example.com/avatar.jpg' })
+  })
   it('keeps localhost usable without LINE login', async () => {
     expect(isLocalDevelopment('localhost')).toBe(true)
     expect(await initializeLineSession({

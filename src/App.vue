@@ -1,17 +1,12 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import Button from 'primevue/button'
 import DatePicker from 'primevue/datepicker'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Textarea from 'primevue/textarea'
 import MobileDateTimePicker from './components/MobileDateTimePicker.vue'
-import IdentityReading from './components/IdentityReading.vue'
-import CompatibilityScore from './components/CompatibilityScore.vue'
-import PersonalDayReading from './components/PersonalDayReading.vue'
 import MembershipSummary from './components/MembershipSummary.vue'
-import BillingPanel from './components/BillingPanel.vue'
-import PackageSelection from './components/PackageSelection.vue'
 import WelcomeOverview from './components/WelcomeOverview.vue'
 import ProfileAccount from './components/ProfileAccount.vue'
 import { birthDateDescription } from './services/birth-display'
@@ -45,6 +40,13 @@ import {
   reserveComparison,
   syncLineAccount
 } from './services/account-api'
+
+const IdentityReading = defineAsyncComponent(() => import('./components/IdentityReading.vue'))
+const CompatibilityScore = defineAsyncComponent(() => import('./components/CompatibilityScore.vue'))
+const PersonalDayReading = defineAsyncComponent(() => import('./components/PersonalDayReading.vue'))
+const BillingPanel = defineAsyncComponent(() => import('./components/BillingPanel.vue'))
+const PackageSelection = defineAsyncComponent(() => import('./components/PackageSelection.vue'))
+const billingSnapshot = ref(null)
 
 const isBlindTestMode = new URLSearchParams(window.location.search).get('mode') === 'blind-test'
 const previewPlan = import.meta.env.DEV ? new URLSearchParams(window.location.search).get('preview') : null
@@ -579,11 +581,17 @@ function choosePlan(planId, cycle = selectedBillingCycle.value) {
 }
 
 async function refreshBillingAccount(billingStatus) {
+  if (!billingStatus) { billingSnapshot.value = null; return }
+  billingSnapshot.value = { status: billingStatus, fetchedAt: Date.now(), idToken: lineSession.idToken }
   const subscriptions = billingStatus?.subscriptions ?? []
   const isCanceled = sub => sub.renewalCanceled ?? (sub.cancelAtPeriodEnd || Boolean(sub.cancelAt))
   renewalCanceled.value = subscriptions.some(sub => isCanceled(sub) && ['active', 'trialing', 'past_due', 'unpaid'].includes(sub.status)
     && (!sub.cancelAt || !sub.periodEnd || sub.cancelAt <= sub.periodEnd))
     && !subscriptions.some(sub => sub.status === 'active' && !isCanceled(sub))
+  if (billingStatus.entitlement) {
+    applyEntitlement(billingStatus.entitlement)
+    return
+  }
   if (!lineSession.idToken) return
   try {
     const account = await syncLineAccount({ idToken: lineSession.idToken })
@@ -1325,7 +1333,7 @@ if (isBlindTestMode) {
       </PackageSelection>
 
       <p class="pricing-footnote">ช่วงดูล่วงหน้าเลื่อนตามวันใช้งาน ขณะสมาชิกยังมีผล เมื่อหมดอายุดูได้เฉพาะวันนี้ โดยไม่ลบข้อมูลที่บันทึกไว้</p>
-      <BillingPanel :id-token="lineSession.idToken || ''" :product="selectedBillingProduct" :local="lineSession.status === 'local'" :advance-starts-at="selectedBillingProduct === 'yearly' && accessPlan === 'premium' && billingCycle === 'monthly' && new Date(premiumExpiresAt) > calendarNow ? premiumExpiresAt : null" :promptpay-only="accessPlan === 'premium' && billingPaymentMethod === 'promptpay' && selectedBillingProduct === billingCycle && new Date(premiumExpiresAt) > calendarNow" @back="selectedBillingProduct = null; pricingNotice = ''" @refresh-account="refreshBillingAccount" />
+      <BillingPanel :id-token="lineSession.idToken || ''" :snapshot="billingSnapshot" :product="selectedBillingProduct" :local="lineSession.status === 'local'" :advance-starts-at="selectedBillingProduct === 'yearly' && accessPlan === 'premium' && billingCycle === 'monthly' && new Date(premiumExpiresAt) > calendarNow ? premiumExpiresAt : null" :promptpay-only="accessPlan === 'premium' && billingPaymentMethod === 'promptpay' && selectedBillingProduct === billingCycle && new Date(premiumExpiresAt) > calendarNow" @back="selectedBillingProduct = null; pricingNotice = ''" @refresh-account="refreshBillingAccount" />
     </section>
 
     <section v-if="!personalMonth && !isBlindTestMode && activeView === 'calendar' && !editingBirthProfile" class="calendar-section" aria-live="polite">
@@ -1407,7 +1415,7 @@ if (isBlindTestMode) {
 
     </section>
 
-    <section v-if="luckTimeline && !isBlindTestMode && activeView === 'luck'" class="luck-section">
+    <section v-if="!isBlindTestMode && activeView === 'luck' && luckTimeline" class="luck-section">
       <div class="view-profile-summary">
         <div>
           <span>ข้อมูลที่ใช้ดูจังหวะชีวิต</span>

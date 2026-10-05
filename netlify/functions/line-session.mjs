@@ -137,14 +137,11 @@ function firstDayOfCurrentMonth(now = new Date()) {
   return `${year}-${month}-01`
 }
 
-export async function readAccount(rest, userId, now = new Date()) {
+export async function readEntitlement(rest, userId, now = new Date()) {
   if (rest.schema === 'bazi_live') {
     // One row lock covers activation, expiry and monthly reset, preventing a
     // stale account refresh from overwriting a concurrent paid renewal or usage.
-    const entitlement = await rest('rpc/refresh_account_entitlement', { method: 'POST', body: { p_user_id: userId } })
-    const [birthProfile] = await rest(`birth_profiles?user_id=eq.${encodeURIComponent(userId)}&select=*&limit=1`)
-    const comparisonReports = await rest(`comparison_reports?user_id=eq.${encodeURIComponent(userId)}&select=*&order=created_at.desc&limit=20`)
-    return { entitlement, birthProfile: birthProfile ?? null, comparisonReports }
+    return rest('rpc/refresh_account_entitlement', { method: 'POST', body: { p_user_id: userId } })
   }
   let [entitlement] = await rest(`user_entitlements?user_id=eq.${encodeURIComponent(userId)}&select=*&limit=1`)
   if (entitlement?.next_membership && new Date(entitlement.next_membership.startsAt) <= now) entitlement = await rest('rpc/activate_annual_membership', { method: 'POST', body: { p_user_id: userId } })
@@ -160,17 +157,20 @@ export async function readAccount(rest, userId, now = new Date()) {
       method: 'PATCH', body: updates, prefer: 'return=representation'
     })
   }
-  const [birthProfile] = await rest(`birth_profiles?user_id=eq.${encodeURIComponent(userId)}&select=*&limit=1`)
-  let comparisonReports = []
-  try {
-    comparisonReports = await rest(`comparison_reports?user_id=eq.${encodeURIComponent(userId)}&select=*&order=created_at.desc&limit=20`)
-  } catch {
-    // รองรับช่วง deploy ก่อนที่ migration รายการเปรียบเทียบจะถูกรัน
-  }
+  return entitlement
+}
+
+export async function readAccount(rest, userId, now = new Date()) {
+  const [entitlement, [birthProfile], comparisonReports] = await Promise.all([
+    readEntitlement(rest, userId, now),
+    rest(`birth_profiles?user_id=eq.${encodeURIComponent(userId)}&select=*&limit=1`),
+    rest(`comparison_reports?user_id=eq.${encodeURIComponent(userId)}&select=*&order=created_at.desc&limit=20`)
+      .catch(error => { if (rest.schema === 'bazi_live') throw error; return [] })
+  ])
   return { entitlement, birthProfile: birthProfile ?? null, comparisonReports }
 }
 
-function entitlementPayload(entitlement) {
+export function entitlementPayload(entitlement) {
   return {
     planId: entitlement.plan_id,
     billingCycle: entitlement.billing_cycle ?? 'monthly',

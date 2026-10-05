@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { billingRequest, trustedBillingUrl } from '../services/billing-api'
-const props = defineProps({ idToken: { type: String, default: '' }, product: { type: String, default: null }, local: Boolean, promptpayOnly: Boolean, advanceStartsAt: { type: String, default: null } })
+const props = defineProps({ idToken: { type: String, default: '' }, snapshot: { type: Object, default: null }, product: { type: String, default: null }, local: Boolean, promptpayOnly: Boolean, advanceStartsAt: { type: String, default: null } })
 const emit = defineEmits(['refresh-account', 'back'])
 const paymentMethod = ref('promptpay')
 const status = ref(null)
@@ -33,19 +33,29 @@ async function openStripe(action) {
   } catch (e) { error.value = e.message }
   finally { busy.value = false }
 }
-function refreshWhenVisible() { if (document.visibilityState === 'visible') refresh() }
-onMounted(() => {
+// Cached display only. Checkout and all paid actions still validate on the server.
+const snapshotFresh = () => props.snapshot?.status && props.snapshot.idToken === props.idToken
+  && Date.now() >= props.snapshot.fetchedAt && Date.now() - props.snapshot.fetchedAt < 30000
+let lastReturnRefresh = -Infinity
+function refreshOnReturn() {
+  if (Date.now() - lastReturnRefresh < 1000) return
+  lastReturnRefresh = Date.now()
   refresh()
-  window.addEventListener('focus', refresh)
-  window.addEventListener('pageshow', refresh)
+}
+function refreshWhenVisible() { if (document.visibilityState === 'visible') refreshOnReturn() }
+onMounted(() => {
+  if (snapshotFresh()) status.value = props.snapshot.status
+  else refresh()
+  window.addEventListener('focus', refreshOnReturn)
+  window.addEventListener('pageshow', refreshOnReturn)
   document.addEventListener('visibilitychange', refreshWhenVisible)
 })
 onBeforeUnmount(() => {
-  window.removeEventListener('focus', refresh)
-  window.removeEventListener('pageshow', refresh)
+  window.removeEventListener('focus', refreshOnReturn)
+  window.removeEventListener('pageshow', refreshOnReturn)
   document.removeEventListener('visibilitychange', refreshWhenVisible)
 })
-watch(() => props.idToken, refresh)
+watch(() => props.idToken, () => { status.value = null; refresh() })
 watch(() => props.product, () => { paymentMethod.value = 'promptpay'; error.value = '' })
 </script>
 

@@ -1,4 +1,4 @@
-import { createSupabaseRest, requiredEnvironment, verifyLineIdToken } from './line-session.mjs'
+import { createSupabaseRest, entitlementPayload, readEntitlement, requiredEnvironment, verifyLineIdToken } from './line-session.mjs'
 import { billingConfig, stripeClient, products, validatePrice, checkoutParameters, subscriptionStatus } from '../lib/billing.mjs'
 
 export default async request => {
@@ -14,7 +14,14 @@ export default async request => {
     if (!user) return Response.json({ error: 'กรุณาเปิดบัญชี LINE ก่อน' }, { status: 401 })
     const stripe = stripeClient(config)
     let [customer] = await rest('billing_customers?user_id=eq.' + user.id + '&select=*&limit=1')
-    if (!customer && body.action === 'status') return Response.json({ enabled: true, testMode: !config.livemode, payments: [], subscriptions: [], hasCustomer: false }, { headers: { 'Cache-Control': 'no-store' } })
+    if (body.action === 'status') {
+      const [entitlement, payments, subscriptions] = await Promise.all([
+        readEntitlement(rest, user.id),
+        customer ? rest('billing_payments?user_id=eq.' + user.id + '&select=id,product,amount,created_at,payment_method,paid_until&order=created_at.desc&limit=20') : [],
+        customer ? stripe.subscriptions.list({ customer: customer.stripe_customer_id, status: 'all', limit: 100 }) : { data: [] }
+      ])
+      return Response.json({ enabled: true, testMode: !config.livemode, entitlement: entitlementPayload(entitlement), payments, hasCustomer: Boolean(customer), subscriptions: subscriptions.data.map(subscriptionStatus) }, { headers: { 'Cache-Control': 'no-store' } })
+    }
     if (!customer && body.action === 'portal') return Response.json({ error: 'ยังไม่มีข้อมูลการชำระเงิน' }, { status: 409 })
     if (body.action === 'checkout' && !Object.hasOwn(products, body.product)) return Response.json({ error: 'แพ็กเกจไม่ถูกต้อง' }, { status: 400 })
     const paymentMethod = body.paymentMethod ?? 'card'
@@ -24,10 +31,6 @@ export default async request => {
       ;[customer] = await rest('billing_customers?on_conflict=user_id&select=*', { method: 'POST', prefer: 'resolution=merge-duplicates,return=representation', body: { user_id: user.id, stripe_customer_id: created.id } })
     }
     const subscriptions = await stripe.subscriptions.list({ customer: customer.stripe_customer_id, status: 'all', limit: 100 })
-    if (body.action === 'status') {
-      const payments = await rest('billing_payments?user_id=eq.' + user.id + '&select=id,product,amount,created_at,payment_method,paid_until&order=created_at.desc&limit=20')
-      return Response.json({ enabled: true, testMode: !config.livemode, payments, hasCustomer: true, subscriptions: subscriptions.data.map(subscriptionStatus) }, { headers: { 'Cache-Control': 'no-store' } })
-    }
     if (body.action === 'portal') {
       const portalConfig = await stripe.billingPortal.configurations.create({ features: {
         invoice_history: { enabled: true }, payment_method_update: { enabled: true },

@@ -1,7 +1,8 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ rest: vi.fn(), create: vi.fn(), prices: vi.fn(), subscriptions: vi.fn() }))
-vi.mock('../../netlify/functions/line-session.mjs', () => ({
+vi.mock('../../netlify/functions/line-session.mjs', async importOriginal => ({
+  ...await importOriginal(),
   requiredEnvironment: () => ({ channelId: 'channel' }),
   verifyLineIdToken: async () => ({ sub: 'line-test' }),
   createSupabaseRest: () => mocks.rest
@@ -23,11 +24,20 @@ beforeEach(() => {
     if (path.startsWith('app_users?')) return [{ id: 'user_test' }]
     if (path.startsWith('billing_customers?')) return [{ stripe_customer_id: 'cus_test' }]
     if (path.startsWith('user_entitlements?')) return [entitlement]
+    if (path.startsWith('billing_payments?')) return []
     if (path === 'rpc/reserve_billing_order_v2') return { id: 'order_test', product: options.body.p_product, payment_method: options.body.p_payment_method, created_at: new Date().toISOString(), ...(options.body.p_product === 'yearly' && entitlement.billing_cycle === 'monthly' ? { advance_starts_at: entitlement.premium_expires_at, advance_expires_at: '2100-01-01T00:00:00Z' } : {}) }
     throw new Error('Unexpected path')
   })
 })
 describe('PromptPay checkout ownership and package guards', () => {
+  it('includes authoritative entitlement in status without loading birth profiles or comparison reports', async () => {
+    entitlement = { plan_id: 'premium', billing_cycle: 'monthly', premium_expires_at: '2099-01-01T00:00:00Z', included_comparison_used: 1 }
+    const response = await handler(new Request('https://example.com/api/billing-session', { method: 'POST', body: JSON.stringify({ action: 'status', idToken: 'token' }) }))
+    expect(response.status).toBe(200)
+    expect((await response.json()).entitlement).toMatchObject({ planId: 'premium', billingCycle: 'monthly' })
+    expect(mocks.rest.mock.calls.some(([path]) => /birth_profiles|comparison_reports/.test(path))).toBe(false)
+    expect(mocks.create).not.toHaveBeenCalled()
+  })
   it('reserves a method-aware order and creates one-time checkout, not a recurring price', async () => {
     expect((await request('monthly', 'promptpay')).status).toBe(200)
     expect(mocks.rest).toHaveBeenCalledWith('rpc/reserve_billing_order_v2', expect.objectContaining({ body: { p_user_id: 'user_test', p_product: 'monthly', p_payment_method: 'promptpay' } }))

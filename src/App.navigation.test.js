@@ -48,6 +48,23 @@ describe('main navigation with an isolated mock account', () => {
     await openView('โปรไฟล์')
     expect(wrapper.findComponent({ name: 'MembershipSummary' }).exists()).toBe(true)
   })
+  it('applies server billing entitlement without requesting a second account sync', async () => {
+    wrapper = shallowMount(App, { global: { stubs: {
+      PackageSelection: { name: 'PackageSelection', props: ['billingCycle'], template: '<div />' },
+      BillingPanel: { name: 'BillingPanel', props: ['snapshot'], emits: ['refresh-account'], template: '<div />' }
+    } } })
+    await flushPromises()
+    await openView('แพ็กเกจ')
+    const billing = wrapper.getComponent({ name: 'BillingPanel' })
+    billing.vm.$emit('refresh-account', { enabled: true, subscriptions: [], entitlement: { planId: 'premium', billingCycle: 'yearly', premiumExpiresAt: '2099-01-01T00:00:00Z' } })
+    await flushPromises()
+    expect(syncLineAccount).toHaveBeenCalledTimes(1)
+    expect(wrapper.getComponent({ name: 'PackageSelection' }).props('billingCycle')).toBe('yearly')
+    billing.vm.$emit('refresh-account', null)
+    await flushPromises()
+    expect(syncLineAccount).toHaveBeenCalledTimes(1)
+    expect(billing.props('snapshot')).toBeNull()
+  })
   it('uses the shared navigation styling without the old right-aligned profile button style', () => {
     const identity = readFileSync('src/styles/identity.css', 'utf8')
     expect(identity).not.toMatch(/\.account-profile-button\s*\{/)

@@ -9,6 +9,15 @@ const live = { BILLING_MODE: 'live', BILLING_LIVE_ENABLED: 'true', BILLING_LIVE_
   STRIPE_WEBHOOK_SECRET: 'whsec_example', STRIPE_PRICE_MONTHLY: 'price_month',
   STRIPE_PRICE_YEARLY: 'price_year', STRIPE_PRICE_COMPARISON: 'price_credits' }
 describe('Live billing isolation', () => {
+  it('starts independent account reads together but still waits for authoritative entitlement refresh', async () => {
+    const pending = []
+    const rest = vi.fn(path => new Promise(resolve => pending.push(() => resolve(path === 'rpc/refresh_account_entitlement' ? { plan_id: 'premium' } : []))))
+    rest.schema = 'bazi_live'
+    const reading = readAccount(rest, 'user_live')
+    expect(rest).toHaveBeenCalledTimes(3)
+    for (const resolve of pending) resolve()
+    expect((await reading).entitlement.plan_id).toBe('premium')
+  })
   it('requires explicit activation, migration acknowledgement and matching key mode', () => {
     expect(billingConfig(live).livemode).toBe(true)
     for (const overrides of [{ BILLING_LIVE_ENABLED: 'false' }, { BILLING_LIVE_SCHEMA_READY: 'false' },

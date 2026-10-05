@@ -7,6 +7,36 @@ vi.mock('../services/billing-api', () => ({ billingRequest: vi.fn(), trustedBill
 beforeEach(() => vi.clearAllMocks())
 enableAutoUnmount(afterEach)
 describe('billing panel', () => {
+  it('reuses fresh same-session status on tab remount but manual refresh always checks the server', async () => {
+    const status = { enabled: true, payments: [], subscriptions: [] }
+    billingRequest.mockResolvedValue(status)
+    const wrapper = mount(BillingPanel, { props: { idToken: 'token', snapshot: { idToken: 'token', fetchedAt: Date.now(), status } } })
+    await flushPromises()
+    expect(billingRequest).not.toHaveBeenCalled()
+    expect(wrapper.emitted('refresh-account')).toBeUndefined()
+    await wrapper.findAll('button').at(-1).trigger('click')
+    await flushPromises()
+    expect(billingRequest).toHaveBeenCalledTimes(1)
+  })
+  it.each([['token', -31000], ['other-user-token', 0]])('does not reuse expired or other-session status', async (idToken, age) => {
+    billingRequest.mockResolvedValue({ enabled: true, payments: [], subscriptions: [] })
+    mount(BillingPanel, { props: { idToken: 'token', snapshot: { idToken, fetchedAt: Date.now() + age, status: { enabled: true, payments: [], subscriptions: [] } } } })
+    await flushPromises()
+    expect(billingRequest).toHaveBeenCalledTimes(1)
+  })
+  it('coalesces the browser return event burst without disabling an explicit refresh', async () => {
+    billingRequest.mockResolvedValue({ enabled: true, payments: [], subscriptions: [] })
+    const wrapper = mount(BillingPanel, { props: { idToken: 'token' } })
+    await flushPromises()
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+    window.dispatchEvent(new Event('pageshow'))
+    await flushPromises()
+    expect(billingRequest).toHaveBeenCalledTimes(2)
+    await wrapper.findAll('button').at(-1).trigger('click')
+    await flushPromises()
+    expect(billingRequest).toHaveBeenCalledTimes(3)
+  })
   it('shows canceled renewal for an active subscription with only cancel_at set', async () => {
     billingRequest.mockResolvedValue({ enabled: true, payments: [], subscriptions: [{ status: 'active', cancelAtPeriodEnd: false, cancelAt: 1793206800, renewalCanceled: true, periodEnd: 1793206800 }] })
     const wrapper = mount(BillingPanel, { props: { idToken: 'token' } })

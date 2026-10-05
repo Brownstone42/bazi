@@ -44,10 +44,7 @@
 .identity-all { margin-top: 16px; background: #fffcf7; border: 1px solid #e3d9cc; border-radius: 18px; padding: 0 22px; }.identity-all > summary { padding: 20px 0; }.identity-all-grid { display: grid; gap: 16px; padding-bottom: 22px; }.identity-all-grid article { border-top: 1px solid #eee3d8; }.identity-all-grid p { font-size: .8rem; line-height: 1.8; color: #847264; }
 .identity-method { margin-top: 20px; color: #8d7a67; font-size: .75rem; line-height: 1.85; }.identity-method summary { cursor: pointer; min-height: 44px; padding: 12px 0; }
 .identity-extended { max-width: 1060px; margin-inline: auto; }.identity-extended > summary { cursor: pointer; font-size: .85rem; color: #765443; min-height: 30px; }.identity-extended .reading-intro { margin-top: 25px; }
-.identity-back { margin-bottom: 16px; }
 .workspace.profile-workspace { grid-template-columns: minmax(0, 1fr); max-width: 680px; margin-inline: auto; width: 100%; }
-.account-profile-button { flex-shrink: 0; margin-left: auto; min-height: 44px; padding: 10px 14px; background: #fffaf3; color: #70434a; border: 1px solid #dccfc2; border-radius: 12px; cursor: pointer; font-size: .8rem; }
-.account-profile-button[aria-current="page"] { background: #741b28; color: #fffaf3; }
 .account-loading { padding: 24px; background: #fffaf3; border-radius: 16px; color: #786455; }
 .account-loading p { margin: 0; }
 .account-loading button { margin-top: 14px; min-height: 44px; padding: 10px 16px; border: 1px solid #dccfc2; border-radius: 10px; cursor: pointer; }

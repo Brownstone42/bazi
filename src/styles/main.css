@@ -59,7 +59,7 @@ h1 { margin-bottom: 5px; color: #3b161b; font-family: Georgia, "Noto Serif Thai"
   .welcome-start { width: 100%; }
 }
 .view-navigation { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin: 0 0 16px; padding: 5px; background: rgba(255,253,248,.78); border: 1px solid rgba(85,59,48,.1); border-radius: 16px; box-shadow: 0 8px 24px rgba(75,61,49,.06); }
-.view-navigation button { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 11px 10px; color: #786b64; background: transparent; border: 0; border-radius: 12px; cursor: pointer; text-align: left; }
+.view-navigation button { display: flex; align-items: center; gap: 9px; width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 11px 10px; color: #786b64; background: transparent; border: 0; border-radius: 12px; cursor: pointer; text-align: left; }
 .view-navigation button > i { flex: 0 0 auto; font-size: 1rem; }
 .view-navigation button > span { min-width: 0; }
 .view-navigation strong, .view-navigation small { display: block; }

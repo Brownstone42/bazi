@@ -1,4 +1,5 @@
 import { flushPromises, shallowMount } from '@vue/test-utils'
+import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App.vue'
 import { initializeLineSession } from './services/liff-auth'
@@ -38,6 +39,12 @@ afterEach(() => {
 })
 
 describe('main navigation with an isolated mock account', () => {
+  it('uses the shared navigation styling without the old right-aligned profile button style', () => {
+    const identity = readFileSync('src/styles/identity.css', 'utf8')
+    expect(identity).not.toMatch(/\.account-profile-button\s*\{/)
+    const styles = readFileSync('src/styles/main.css', 'utf8')
+    expect(styles).toMatch(/\.view-navigation button\s*\{[^}]*width: 100%;[^}]*margin: 0;/)
+  })
   it('shows the introduction only for accounts without a birth profile and starts the form without saving', async () => {
     syncLineAccount.mockResolvedValue({ ...account(), birthProfile: null })
     wrapper = shallowMount(App)

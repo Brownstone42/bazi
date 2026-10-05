@@ -798,7 +798,7 @@ if (isBlindTestMode) {
       <div class="hero-heading">
         <p class="eyebrow">BAZI</p>
         <h1>รู้จักตัวเอง ผ่านปาจื้อ</h1>
-        <p class="hero-copy">
+        <p v-if="isBlindTestMode || chart" class="hero-copy">
           {{ isBlindTestMode ? 'เครื่องมือภายในสำหรับทดสอบคุณภาพคำอ่านโดยไม่เฉลยดวงล่วงหน้า' : 'ค้นพบจุดเด่น เข้าใจวิธีของตัวเอง และนำไปใช้กับชีวิต' }}
         </p>
       </div>
@@ -970,7 +970,7 @@ if (isBlindTestMode) {
         <p class="comparison-topic-hint">อ่านรายละเอียดการใช้ข้อมูลเกิดและช่องทางขอลบได้ที่ <a href="/privacy.html" target="_blank" rel="noopener">นโยบายความเป็นส่วนตัว</a></p>
         <Button
           type="submit"
-          :label="isBlindTestMode ? 'เริ่มการทดสอบ' : chart ? 'บันทึกโปรไฟล์' : 'บันทึกและดูปาจื้อของฉัน'"
+          :label="isBlindTestMode ? 'เริ่มการทดสอบ' : chart ? 'บันทึกโปรไฟล์' : 'บันทึกและดูพื้นดวงของฉัน'"
           :loading="profileSaving"
           :disabled="profileSaving"
           icon="pi pi-sparkles"

@@ -14,7 +14,7 @@ const features = [
     <div class="welcome-intro">
       <span class="welcome-kicker">เริ่มรู้จักตัวเอง</span>
       <h2 id="welcome-title">เข้าใจตัวเอง<br />แล้วเลือกจังหวะที่เหมาะกับคุณ</h2>
-      <p>ปาจื้อคือการอ่านดวงจากวันเวลาเกิด ที่นี่เราสรุปให้เป็นภาษาที่อ่านง่าย ตั้งแต่ตัวตน ความสัมพันธ์ ไปจนถึงจังหวะของแต่ละวัน</p>
+      <p>ที่นี่เราสรุปให้เป็นภาษาที่อ่านง่าย ตั้งแต่ตัวตน ความสัมพันธ์ ไปจนถึงจังหวะของแต่ละวัน</p>
       <button class="welcome-start" type="button" @click="$emit('start')">เริ่มดูพื้นดวงฟรี <i class="pi pi-arrow-down" aria-hidden="true" /></button>
       <small class="welcome-free-note">เริ่มได้โดยไม่ต้องซื้อแพ็กเกจหรือกรอกข้อมูลบัตร</small>
     </div>
@@ -23,10 +23,6 @@ const features = [
         <i class="pi" :class="feature.icon" aria-hidden="true" />
         <div><h3>{{ feature.title }}</h3><p>{{ feature.detail }}</p><span>{{ feature.access }}</span></div>
       </article>
-    </div>
-    <div class="welcome-next">
-      <p><strong>เริ่มอย่างไร?</strong> กรอกข้อมูลเกิดด้านล่าง แล้วเปิดอ่านพื้นดวงของคุณได้เลย</p>
-      <p>อยากวางแผนล่วงหน้า? Premium รายเดือนดูปฏิทินล่วงหน้า 30 วัน รายปี 90 วัน เลือกภายหลังได้</p>
     </div>
   </section>
 </template>

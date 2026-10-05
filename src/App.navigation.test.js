@@ -44,6 +44,8 @@ describe('main navigation with an isolated mock account', () => {
     await flushPromises()
     const welcome = wrapper.getComponent({ name: 'WelcomeOverview' })
     const form = wrapper.get('.form-card')
+    expect(wrapper.find('.hero-copy').exists()).toBe(false)
+    expect(form.find('button-stub[type="submit"]').attributes('label')).toBe('บันทึกและดูพื้นดวงของฉัน')
     const focus = vi.spyOn(form.element, 'focus')
     welcome.vm.$emit('start')
     await flushPromises()

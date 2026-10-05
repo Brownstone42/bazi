@@ -87,7 +87,7 @@ watch(() => props.product, () => { paymentMethod.value = 'promptpay'; error.valu
           <p v-if="subscription.cancelAt && subscription.periodEnd && subscription.cancelAt > subscription.periodEnd">กำหนดยกเลิกวันที่ {{ dateLabel(subscription.cancelAt * 1000) }} ก่อนถึงวันนั้นอาจมีการเรียกเก็บตามรอบเดิม</p>
           <p v-else>ระบบจะไม่ต่ออายุสมาชิกอัตโนมัติในรอบถัดไป</p>
           <p v-if="subscription.periodEnd && ['active', 'trialing'].includes(subscription.status)">ยังใช้ Premium ได้ถึง <b>{{ dateLabel(subscription.periodEnd * 1000) }}</b></p>
-          <p v-else>ตรวจวันสิ้นสุดสิทธิ์ที่ชำระแล้วในส่วนสมาชิกของฉันด้านบน</p>
+          <p v-else>ตรวจวันสิ้นสุดสิทธิ์ที่ชำระแล้วในส่วนสมาชิกของฉันที่แท็บโปรไฟล์</p>
           <small>เครดิตซื้อเพิ่มยังอยู่ ไม่ถูกลบจากการยกเลิกต่ออายุ</small>
         </template>
         <template v-else>
@@ -96,7 +96,7 @@ watch(() => props.product, () => { paymentMethod.value = 'promptpay'; error.valu
             <p v-if="subscription.nextBillAt">เรียกเก็บรายปีครั้งถัดไป {{ dateLabel(subscription.nextBillAt * 1000) }}</p>
           </template>
           <strong v-else>{{ subscription.status === 'active' ? 'เปิดต่ออายุอัตโนมัติ' : subscriptionLabels[subscription.status] || 'กรุณาตรวจสอบสถานะใน Stripe' }}</strong>
-          <p v-if="['past_due', 'unpaid'].includes(subscription.status)">ยังไม่ยืนยันการชำระรอบใหม่ ตรวจสอบสิทธิ์ที่ใช้ได้ในหน้าสมาชิกของฉัน และจัดการวิธีชำระเงินด้านล่าง</p>
+          <p v-if="['past_due', 'unpaid'].includes(subscription.status)">ยังไม่ยืนยันการชำระรอบใหม่ ตรวจสอบสิทธิ์ที่ใช้ได้ในแท็บโปรไฟล์ และจัดการวิธีชำระเงินด้านล่าง</p>
           <p v-if="subscription.periodEnd && !(subscription.annualAdvance && subscription.status === 'trialing')">{{ subscription.status === 'active' ? 'รอบถัดไป' : 'สิ้นสุดรอบ' }} {{ dateLabel(subscription.periodEnd * 1000) }}</p>
         </template>
       </div>

@@ -8,14 +8,21 @@ const packages = [
   { id: 'yearly', title: 'Premium รายปี', price: '999', period: 'ปี', horizon: 90, quota: 10 }
 ]
 const current = id => active.value && props.billingCycle === id
+const groups = computed(() => [
+  { id: 'current', packages: packages.filter(pack => current(pack.id)), free: !active.value },
+  { id: 'choices', packages: packages.filter(pack => !current(pack.id)), free: active.value }
+])
 const advance = id => active.value && props.billingCycle === 'monthly' && id === 'yearly' && !props.nextMembership
 const blocked = id => Boolean(props.nextMembership) || (active.value && !advance(id) && !(current(id) && props.paymentMethod === 'promptpay'))
 const date = value => new Intl.DateTimeFormat('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'long' }).format(new Date(value))
 </script>
 
 <template>
-  <div class="packages">
-    <article v-for="pack in packages" :key="pack.id" class="package" :class="{ current: current(pack.id) }">
+  <div class="package-selection">
+    <template v-for="group in groups" :key="group.id">
+      <slot v-if="group.id === 'choices'" name="heading" />
+      <div class="packages" :class="{ 'current-package': group.id === 'current' }">
+    <article v-for="pack in group.packages" :key="pack.id" class="package" :class="{ current: current(pack.id) }">
       <div class="topline"><span>{{ pack.title }}</span><b v-if="current(pack.id)">แพ็กเกจปัจจุบัน</b><b v-else-if="pack.id === 'yearly'">ประหยัด 789 บาท/ปี</b></div>
       <h3>{{ pack.price }} <small>บาท / {{ pack.period }}</small></h3>
       <p>{{ pack.id === 'monthly' ? 'วางแผนเรื่องสำคัญในแต่ละเดือน' : 'วางแผนไกลขึ้น พร้อมโควตาเปรียบเทียบมากขึ้น' }}</p>
@@ -25,13 +32,16 @@ const date = value => new Intl.DateTimeFormat('th-TH', { timeZone: 'Asia/Bangkok
       <p v-if="nextMembership && pack.id === 'yearly'" class="state">ซื้อไว้ล่วงหน้าแล้ว · เริ่ม {{ date(nextMembership.startsAt) }}</p>
       <button type="button" :disabled="blocked(pack.id)" @click="$emit('select', pack.id)">{{ nextMembership ? pack.id === 'yearly' ? 'ซื้อรายปีล่วงหน้าแล้ว' : 'ใช้รายเดือนจนถึงวันเริ่มรายปี' : advance(pack.id) ? 'ซื้อรายปีล่วงหน้า' : current(pack.id) ? paymentMethod === 'promptpay' ? 'ซื้อเพิ่มเพื่อขยายวันหมดอายุ' : 'กำลังใช้แพ็กเกจนี้' : active ? 'เปลี่ยนได้เมื่อสมาชิกเดิมหมดอายุ' : `เลือก${pack.title}` }}</button>
     </article>
-    <article class="package credits"><div class="topline"><span>เครดิตเปรียบเทียบเพิ่ม</span><b>ซื้อแยกได้</b></div><h3>59 <small>บาท / 5 คน</small></h3><p>เครดิตไม่หมดอายุ ใช้โควตาสมาชิกที่เหลือก่อน</p><button type="button" @click="$emit('select', 'comparison')">ซื้อเครดิต 5 คน</button></article>
-    <article class="package free"><div class="topline"><span>Free</span><b v-if="!active">แพ็กเกจปัจจุบัน</b></div><h3>ใช้ฟรี</h3><p>พื้นดวง · ถนนชีวิต 10 ปีทุกช่วง · ภาพรวมวันนี้ · เปรียบเทียบฟรีครั้งแรก 1 คน</p></article>
+    <article v-if="group.id === 'choices'" class="package credits"><div class="topline"><span>เครดิตเปรียบเทียบเพิ่ม</span><b>ซื้อแยกได้</b></div><h3>59 <small>บาท / 5 คน</small></h3><p>เครดิตไม่หมดอายุ ใช้โควตาสมาชิกที่เหลือก่อน</p><button type="button" @click="$emit('select', 'comparison')">ซื้อเครดิต 5 คน</button></article>
+    <article v-if="group.free" class="package free"><div class="topline"><span>Free</span><b v-if="!active">แพ็กเกจปัจจุบัน</b></div><h3>ใช้ฟรี</h3><p>พื้นดวง · ถนนชีวิต 10 ปีทุกช่วง · ภาพรวมวันนี้ · เปรียบเทียบฟรีครั้งแรก 1 คน</p></article>
+      </div>
+    </template>
   </div>
 </template>
 
 <style scoped>
 .packages { display: grid; gap: 18px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.current-package { grid-template-columns: 1fr; margin-bottom: 24px; }
 .package { display: flex; flex-direction: column; padding: 24px; background: #fffcf7; border: 1px solid #e2d9ca; border-radius: 20px; color: #493f35; }
 .package.current { border: 2px solid #365640; background: #f3f5ed; }
 .topline { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-weight: 600; }

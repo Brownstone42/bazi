@@ -3,6 +3,20 @@ import { describe, expect, it } from 'vitest'
 import PackageSelection from './PackageSelection.vue'
 describe('separate membership packages', () => {
   const props = { planId: 'premium', billingCycle: 'monthly', expiresAt: '2099-01-01T00:00:00Z' }
+  it.each([
+    [{}, 'Free'],
+    [props, 'Premium รายเดือน'],
+    [{ ...props, billingCycle: 'yearly' }, 'Premium รายปี'],
+    [{ ...props, expiresAt: '2020-01-01T00:00:00Z' }, 'Free']
+  ])('places the current package above the plan heading without duplicating it', (membership, title) => {
+    const wrapper = mount(PackageSelection, { props: membership, slots: { heading: '<h2 class="plan-heading">CHOOSE YOUR PLAN</h2>' } })
+    const current = wrapper.get('.current-package')
+    expect(current.findAll('.package')).toHaveLength(1)
+    expect(current.text()).toContain(title)
+    expect(current.text()).toContain('แพ็กเกจปัจจุบัน')
+    expect(current.element.nextElementSibling).toBe(wrapper.get('.plan-heading').element)
+    expect(wrapper.findAll('.package')).toHaveLength(4)
+  })
   it('marks only the purchased monthly package as current, not Free or annual', () => {
     const wrapper = mount(PackageSelection, { props: { ...props, paymentMethod: 'card' } })
     expect(wrapper.findAll('.current')).toHaveLength(1)

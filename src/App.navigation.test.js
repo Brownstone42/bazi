@@ -39,6 +39,15 @@ afterEach(() => {
 })
 
 describe('main navigation with an isolated mock account', () => {
+  it('shows membership only in profile, not the package tab', async () => {
+    wrapper = shallowMount(App)
+    await flushPromises()
+    await openView('แพ็กเกจ')
+    expect(wrapper.findComponent({ name: 'MembershipSummary' }).exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'PackageSelection' }).exists()).toBe(true)
+    await openView('โปรไฟล์')
+    expect(wrapper.findComponent({ name: 'MembershipSummary' }).exists()).toBe(true)
+  })
   it('uses the shared navigation styling without the old right-aligned profile button style', () => {
     const identity = readFileSync('src/styles/identity.css', 'utf8')
     expect(identity).not.toMatch(/\.account-profile-button\s*\{/)

@@ -907,7 +907,7 @@ if (isBlindTestMode) {
       :input="calculatedInput"
     />
     <MembershipSummary
-      v-if="!isBlindTestMode && accountReady && chart && ((activeView === 'profile' && editingBirthProfile) || activeView === 'pricing')"
+      v-if="!isBlindTestMode && accountReady && chart && activeView === 'profile' && editingBirthProfile"
       :plan-id="accessPlan"
       :billing-cycle="billingCycle"
       :payment-method="billingPaymentMethod"
@@ -1312,15 +1312,17 @@ if (isBlindTestMode) {
     </section>
 
     <section v-if="chart && !isBlindTestMode && activeView === 'pricing'" class="pricing-section">
-      <div v-if="!selectedBillingProduct" class="pricing-heading">
-        <p class="eyebrow">CHOOSE YOUR PLAN</p>
-        <h2>เลือกสิทธิ์ที่เหมาะกับการใช้งาน</h2>
-        <p>พื้นดวง วันนี้ และถนนชีวิต 10 ปีทุกช่วงดูฟรี · Premium รายเดือนดูล่วงหน้า 30 วัน รายปีดูล่วงหน้า 90 วัน</p>
-      </div>
-
       <div v-if="pricingNotice" class="pricing-notice"><i class="pi pi-info-circle" /> {{ pricingNotice }}</div>
 
-      <PackageSelection v-if="!selectedBillingProduct" :plan-id="accessPlan" :billing-cycle="billingCycle" :payment-method="billingPaymentMethod" :expires-at="premiumExpiresAt" :next-membership="nextMembership" @select="product => choosePlan(product === 'comparison' ? 'comparison' : 'premium', product)" />
+      <PackageSelection v-if="!selectedBillingProduct" :plan-id="accessPlan" :billing-cycle="billingCycle" :payment-method="billingPaymentMethod" :expires-at="premiumExpiresAt" :next-membership="nextMembership" @select="product => choosePlan(product === 'comparison' ? 'comparison' : 'premium', product)">
+        <template #heading>
+          <div class="pricing-heading">
+            <p class="eyebrow">CHOOSE YOUR PLAN</p>
+            <h2>เลือกสิทธิ์ที่เหมาะกับการใช้งาน</h2>
+            <p>พื้นดวง วันนี้ และถนนชีวิต 10 ปีทุกช่วงดูฟรี · Premium รายเดือนดูล่วงหน้า 30 วัน รายปีดูล่วงหน้า 90 วัน</p>
+          </div>
+        </template>
+      </PackageSelection>
 
       <p class="pricing-footnote">ช่วงดูล่วงหน้าเลื่อนตามวันใช้งาน ขณะสมาชิกยังมีผล เมื่อหมดอายุดูได้เฉพาะวันนี้ โดยไม่ลบข้อมูลที่บันทึกไว้</p>
       <BillingPanel :id-token="lineSession.idToken || ''" :product="selectedBillingProduct" :local="lineSession.status === 'local'" :advance-starts-at="selectedBillingProduct === 'yearly' && accessPlan === 'premium' && billingCycle === 'monthly' && new Date(premiumExpiresAt) > calendarNow ? premiumExpiresAt : null" :promptpay-only="accessPlan === 'premium' && billingPaymentMethod === 'promptpay' && selectedBillingProduct === billingCycle && new Date(premiumExpiresAt) > calendarNow" @back="selectedBillingProduct = null; pricingNotice = ''" @refresh-account="refreshBillingAccount" />

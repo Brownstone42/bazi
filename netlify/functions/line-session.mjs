@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { accountSchema } from '../lib/billing-mode.mjs'
+import { normalizeProfileDetails } from '../../src/services/profile-details.js'
 import { buildComparisonReading } from '../../src/services/comparison-reading.js'
 import { calculateChart, calculateChartWithOptionalTime } from '../../src/services/bazi.js'
 
@@ -81,8 +82,8 @@ function displayBirthDate(value) {
 
 export function normalizeBirthProfile(profile) {
   if (!profile) return null
-  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(profile.birthTime ?? '')) throw new Error('Invalid birth time')
-  if (!['male', 'female'].includes(profile.gender)) throw new Error('Invalid gender')
+  if (profile.birthTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(profile.birthTime)) throw new Error('Invalid birth time')
+  if (!['male', 'female', 'unspecified'].includes(profile.gender)) throw new Error('Invalid gender')
   try {
     new Intl.DateTimeFormat('en', { timeZone: profile.timezoneId }).format()
   } catch {
@@ -90,7 +91,7 @@ export function normalizeBirthProfile(profile) {
   }
   return {
     birth_date: isoBirthDate(profile.birthDate),
-    birth_time: profile.birthTime,
+    birth_time: profile.birthTime || null,
     gender: profile.gender,
     timezone_id: profile.timezoneId
   }
@@ -207,6 +208,7 @@ export async function reserveComparison(rest, userId, rawProfile, expectedVersio
   const profile = normalizeComparisonProfile(rawProfile)
   const [owner] = await rest(`birth_profiles?user_id=eq.${encodeURIComponent(userId)}&select=*&limit=1`)
   if (!owner || owner.profile_version !== expectedVersion) throw new Error('profile_version_changed')
+  if (!owner.birth_time || !['male', 'female'].includes(owner.gender)) throw new Error('bazi_profile_incomplete')
   const [membership] = await rest(`user_entitlements?user_id=eq.${encodeURIComponent(userId)}&select=next_membership&limit=1`)
   if (membership?.next_membership && new Date(membership.next_membership.startsAt) <= new Date()) await rest('rpc/activate_annual_membership', { method: 'POST', body: { p_user_id: userId } })
   const toInput = row => ({ birthDate: row.birth_date, birthTime: row.birth_time?.slice(0, 5) || '', gender: row.gender, timezoneId: row.timezone_id,
@@ -281,7 +283,8 @@ export default async (request) => {
     }
     const rest = createSupabaseRest(config)
     const now = new Date().toISOString()
-    const [user] = await rest('app_users?on_conflict=line_user_id&select=id,display_name,picture_url', {
+    const details = body.profileDetails === undefined ? undefined : normalizeProfileDetails(body.profileDetails)
+    const [user] = await rest('app_users?on_conflict=line_user_id&select=id,display_name,picture_url,profile_details', {
       method: 'POST',
       prefer: 'resolution=merge-duplicates,return=representation',
       body: {
@@ -305,7 +308,7 @@ export default async (request) => {
 
     if (body.action && body.action !== 'sync') return jsonResponse({ error: 'ไม่รู้จักคำสั่งที่ส่งมา' }, 400)
 
-    const birthProfile = normalizeBirthProfile(body.birthProfile)
+    const birthProfile = normalizeBirthProfile(body.birthProfile && details?.timezoneUnknown ? { ...body.birthProfile, timezoneId: 'Asia/Bangkok' } : body.birthProfile)
     if (birthProfile) {
       const saved = await rest('rpc/save_birth_profile', {
         method: 'POST',
@@ -315,9 +318,14 @@ export default async (request) => {
       if (!saved?.allowed) return jsonResponse({ error: 'แก้ข้อมูลเกิดได้ 1 ครั้งต่อ 30 วัน กรุณารอถึงวันที่แก้ไขได้อีกครั้ง', nextEditAt: saved?.nextEditAt }, 409)
     }
 
+    if (details) {
+      await rest(`app_users?id=eq.${encodeURIComponent(user.id)}`, { method: 'PATCH', prefer: 'return=minimal', body: { profile_details: details, updated_at: now } })
+    }
+
     const account = await readAccount(rest, user.id)
     return jsonResponse({
       user: { id: user.id, displayName: user.display_name, pictureUrl: user.picture_url },
+      profileDetails: details ?? user.profile_details ?? {},
       entitlement: entitlementPayload(account.entitlement),
       birthProfile: account.birthProfile,
       nextBirthEditAt: account.birthProfile?.last_birth_edit_at
@@ -325,6 +333,7 @@ export default async (request) => {
       comparisonReports: account.comparisonReports.map(report => reportPayload(report, account.birthProfile?.profile_version))
     })
   } catch (error) {
+    if (error instanceof Error && error.message === 'bazi_profile_incomplete') return jsonResponse({ error: 'กรุณาระบุเวลาเกิดและเพศในโปรไฟล์ก่อนใช้ปาจื้อ' }, 409)
     if (error instanceof Error && error.message.includes('profile_version_changed')) {
       return jsonResponse({ error: 'ข้อมูลเกิดเปลี่ยนแล้ว กรุณารีเฟรชหน้าและเปรียบเทียบใหม่ รายงานเดิมยังเก็บไว้และไม่คืนโควต้า' }, 409)
     }

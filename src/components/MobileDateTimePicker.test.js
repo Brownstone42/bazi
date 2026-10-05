@@ -17,16 +17,14 @@ describe('MobileDateTimePicker', () => {
       attachTo: document.body,
       props: { modelValue: '26/08/1989', type: 'date' }
     })
-    expect(wrapper.text()).toContain('26 สิงหาคม 1989')
+    expect(wrapper.text()).toContain('26 สิงหาคม 2532')
     await wrapper.get('.mobile-picker-trigger').trigger('click')
 
-    const selects = document.querySelectorAll('.mobile-picker-columns select')
-    selects[0].value = '27'
-    selects[0].dispatchEvent(new Event('change'))
-    selects[1].value = '9'
-    selects[1].dispatchEvent(new Event('change'))
-    selects[2].value = '1990'
-    selects[2].dispatchEvent(new Event('change'))
+    const wheels = document.querySelectorAll('[role="spinbutton"]')
+    wheels[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+    wheels[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+    wheels[2].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }))
+    await nextTick()
     document.querySelector('.mobile-picker-confirm').click()
 
     expect(wrapper.emitted('update:modelValue')[0]).toEqual(['27/09/1990'])
@@ -50,8 +48,8 @@ describe('MobileDateTimePicker', () => {
     const dialog = document.querySelector('[role="dialog"]')
     expect(trigger.attributes('aria-expanded')).toBe('true')
     expect(trigger.attributes('aria-controls')).toBe(dialog.id)
-    expect(document.activeElement).toBe(dialog.querySelector('select'))
-    const controls = dialog.querySelectorAll('button, select')
+    expect(document.activeElement).toBe(dialog.querySelector('[role="spinbutton"]'))
+    const controls = dialog.querySelectorAll('button, [role="spinbutton"]')
     controls[controls.length - 1].focus()
     const tab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
     controls[controls.length - 1].dispatchEvent(tab)
@@ -71,9 +69,8 @@ describe('MobileDateTimePicker', () => {
   it('clamps the day when changing from a leap year and confirms a valid date', async () => {
     wrapper = mount(MobileDateTimePicker, { attachTo: document.body, props: { modelValue: '29/02/2000', type: 'date' } })
     await wrapper.get('.mobile-picker-trigger').trigger('click')
-    const selects = document.querySelectorAll('.mobile-picker-columns select')
-    selects[2].value = '2001'
-    selects[2].dispatchEvent(new Event('change'))
+    const years = document.querySelector('[role="spinbutton"][aria-label="ปี พ.ศ."]')
+    years.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }))
     await nextTick()
     document.querySelector('.mobile-picker-confirm').click()
     expect(wrapper.emitted('update:modelValue')[0]).toEqual(['28/02/2001'])
@@ -87,5 +84,19 @@ describe('MobileDateTimePicker', () => {
     wrapper.unmount()
     wrapper = null
     expect(document.body.style.overflow).toBe('auto')
+  })
+
+  it('updates the weekday and animal while scrolling, but cancellation does not save', async () => {
+    wrapper = mount(MobileDateTimePicker, { attachTo: document.body, props: { modelValue: '26/08/1989', type: 'date' } })
+    await wrapper.get('.mobile-picker-trigger').trigger('click')
+    expect(document.querySelector('.picker-date-description').textContent).toContain('วันเสาร์')
+    expect(document.querySelector('.picker-date-description').textContent).toContain('มะเส็ง')
+    const days = document.querySelector('[role="spinbutton"][aria-label="วัน"]')
+    days.scrollTop = 26 * 48
+    days.dispatchEvent(new Event('scroll'))
+    await nextTick()
+    expect(document.querySelector('.picker-date-description').textContent).toContain('วันอาทิตย์')
+    document.querySelector('.mobile-picker-cancel').click()
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
   })
 })

@@ -102,6 +102,55 @@ h1 { margin-bottom: 5px; color: #3b161b; font-family: Georgia, "Noto Serif Thai"
 .mobile-picker-actions button { min-height: 50px; border-radius: 13px; cursor: pointer; font-weight: 800; }
 .mobile-picker-confirm { color: #fff8ed; background: #741b28; border: 1px solid #741b28; }
 .mobile-picker-clear { color: #755f56; background: transparent; border: 1px solid #ddd1c7; }
+.mobile-picker-sheet { background: #fff; border-radius: 30px 30px 0 0; padding-top: 12px; }
+.mobile-picker-heading { align-items: center; padding: 4px 2px; }
+.mobile-picker-heading h3 { color: #472366; font-family: inherit; }
+.mobile-picker-heading small { color: #8a7a9b; letter-spacing: 0; }
+.wheel-columns { position: relative; gap: 0; margin: 20px 0 12px; align-items: start; }
+.wheel-columns::before { content: ''; position: absolute; z-index: 0; top: 96px; left: 0; right: 0; height: 48px; background: #f1edfc; border-radius: 28px; pointer-events: none; }
+.wheel-columns.time-columns { grid-template-columns: 1fr 1fr; max-width: none; }
+.picker-wheel { position: relative; z-index: 1; height: 240px; min-width: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; scroll-snap-type: y mandatory; scrollbar-width: none; mask-image: linear-gradient(transparent, #000 40%, #000 60%, transparent); }
+.picker-wheel::-webkit-scrollbar { display: none; }
+.picker-wheel-spacer { height: 96px; }
+.picker-wheel-row { display: grid; place-items: center; height: 48px; scroll-snap-align: center; color: #aaa2b4; font-size: 1.08rem; cursor: pointer; user-select: none; }
+.picker-wheel-row.selected { color: #472366; font-weight: 800; }
+.picker-wheel:focus-visible { outline: 2px solid #765294; outline-offset: -2px; border-radius: 14px; }
+.picker-date-description { min-height: 26px; margin: 8px 0 16px; text-align: center; color: #554065; font-size: .86rem; }
+.mobile-picker-actions { grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+.mobile-picker-actions button { border-radius: 999px; }
+.mobile-picker-cancel { color: #544061; border: 1px solid #d7cfe0; background: #fff; }
+.mobile-picker-confirm { background: #472366; border-color: #472366; }
+.mobile-picker-clear { grid-column: 1 / -1; }
+.mobile-picker-trigger:disabled { opacity: .5; cursor: default; }
+.birth-profile-form { --profile-accent: #472366; background: #faf8fd; }
+.birth-profile-form .field-grid { grid-template-columns: 1fr; gap: 24px; }
+.birth-profile-form .field { font-size: .95rem; font-weight: 500; }
+.birth-profile-form .mobile-picker-trigger, .birth-profile-form .p-select { min-height: 56px; border: 1px solid #d7cfe0; border-radius: 18px; background: white; }
+.birth-date-description, .profile-field-hint { color: #81748c; font-size: .8rem; line-height: 1.6; }
+.birth-profile-form .calculate-button { border-radius: 999px !important; background: var(--profile-accent) !important; border-color: var(--profile-accent) !important; margin-top: 12px; }
+.profile-chip-group { display: flex; flex-wrap: wrap; gap: 10px; }
+.profile-chip-group button { flex: 1 0 auto; min-height: 48px; padding: 10px 20px; color: #84758d; border: 1px solid #d7cfe0; border-radius: 999px; background: #fff; cursor: pointer; }
+.profile-chip-group button[aria-pressed="true"] { color: #472366; background: #ebe3f7; border-color: #472366; font-weight: 700; }
+.profile-chip-group button:focus-visible { outline: 3px solid #9e83b6; outline-offset: 3px; }
+.profile-optional { margin-top: 24px; padding: 24px 0 0; border-top: 1px solid #e8e0f0; }
+.profile-optional h3, .profile-account h3 { font-size: 1rem; font-weight: 600; color: #493958; margin-bottom: 14px; }
+.profile-optional h3 small { color: #8b7e93; font-weight: 400; font-size: .75rem; }
+.blood-type-chips button { flex: 1 1 45px; padding-inline: 8px; }
+.profile-checkbox, .profile-consent { display: flex; align-items: flex-start; gap: 9px; color: #756681; font-size: .8rem; line-height: 1.7; font-weight: 400; }
+.profile-checkbox { min-height: 44px; align-items: center; }
+.profile-consent { margin-top: 14px; }
+.profile-checkbox input, .profile-consent input { width: 20px; height: 20px; flex: 0 0 20px; accent-color: #472366; }
+.profile-consent input { margin-top: 3px; }
+.profile-account { margin-top: 28px; }
+.profile-account-card { border: 1px solid #ece5f2; border-radius: 22px; background: #fff; overflow: hidden; }
+.profile-account-card > div { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 18px; color: #756681; font-size: .85rem; }
+.profile-account-card > div + div { border-top: 1px solid #eee7f3; }
+.profile-account-card strong { color: #493958; overflow-wrap: anywhere; }
+.profile-account-identity > span:last-child { display: flex; align-items: center; gap: 8px; }
+.profile-account-identity img { width: 30px; height: 30px; border-radius: 50%; }
+.profile-saved-notice { padding: 14px; color: #554065; background: #eee7f8; border-radius: 14px; font-size: .85rem; line-height: 1.7; }
+.birth-profile-form .mobile-date-time-picker { display: block !important; }
+.birth-profile-form .desktop-date-time-picker { display: none !important; }
 .mobile-sheet-enter-active, .mobile-sheet-leave-active { transition: background .2s ease; }
 .mobile-sheet-enter-active .mobile-picker-sheet, .mobile-sheet-leave-active .mobile-picker-sheet { transition: transform .24s ease; }
 .mobile-sheet-enter-from, .mobile-sheet-leave-to { background: transparent; }

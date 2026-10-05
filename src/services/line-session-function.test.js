@@ -34,6 +34,9 @@ describe('LINE account function', () => {
       birth_date: '1989-08-26', birth_time: '11:30', gender: 'male', timezone_id: 'Asia/Bangkok'
     })
   })
+  it('saves unknown birth time as null and unspecified sex without fabricating a chart', () => {
+    expect(normalizeBirthProfile({ birthDate: '26/08/1989', birthTime: '', gender: 'unspecified', timezoneId: 'Asia/Bangkok' })).toEqual({ birth_date: '1989-08-26', birth_time: null, gender: 'unspecified', timezone_id: 'Asia/Bangkok' })
+  })
 
   it('normalizes an optional comparison birth time and creates a stable identity', () => {
     const profile = normalizeComparisonProfile({

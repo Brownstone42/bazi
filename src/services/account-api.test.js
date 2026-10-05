@@ -2,6 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { birthProfileToForm, reserveComparison, syncLineAccount } from './account-api'
 
 describe('account API', () => {
+  it('sends optional details separately from the birth profile and does not send them on routine reads', async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: true, json: async () => ({}) }))
+    await syncLineAccount({ idToken: 'token', profileDetails: { bloodType: '', relationshipStatus: 'single' }, fetchImpl })
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body).profileDetails.relationshipStatus).toBe('single')
+    await syncLineAccount({ idToken: 'token', fetchImpl })
+    expect(JSON.parse(fetchImpl.mock.calls[1][1].body)).not.toHaveProperty('profileDetails')
+  })
   it('sends the LINE ID token rather than trusting client profile data', async () => {
     const fetchImpl = vi.fn(async () => ({
       ok: true,

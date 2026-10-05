@@ -23,6 +23,7 @@ export default async function calendar(request) {
     const entitlement = storedEntitlement?.next_membership && new Date(storedEntitlement.next_membership.startsAt) <= new Date()
       ? await rest('rpc/activate_annual_membership', { method: 'POST', body: { p_user_id: user.id } }) : storedEntitlement
     if (!profile) return respond({ error: 'กรุณาบันทึกข้อมูลเกิดก่อนดูปฏิทิน' }, 409)
+    if (!profile.birth_time || !['male', 'female'].includes(profile.gender)) return respond({ error: 'กรุณาระบุเวลาเกิดและเพศในโปรไฟล์ก่อนใช้ปาจื้อและปฏิทิน' }, 409)
     return respond(buildAuthorizedCalendar({ profile, entitlement, request: input }))
   } catch (error) {
     const auth = /LINE ID token|token verification/.test(error.message)

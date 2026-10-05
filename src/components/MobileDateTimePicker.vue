@@ -1,18 +1,19 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
+import PickerWheel from './PickerWheel.vue'
+import { birthDateDescription, thaiMonths } from '../services/birth-display'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
   type: { type: String, required: true, validator: (value) => ['date', 'time'].includes(value) },
   allowEmpty: { type: Boolean, default: false },
-  placeholder: { type: String, default: 'แตะเพื่อเลือก' }
+  placeholder: { type: String, default: 'แตะเพื่อเลือก' },
+  disabled: { type: Boolean, default: false },
+  birthTime: { type: String, default: '' },
+  timezoneId: { type: String, default: 'Asia/Bangkok' }
 })
 const emit = defineEmits(['update:modelValue'])
 
-const thaiMonths = [
-  'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-  'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
-]
 const currentYear = new Date().getFullYear()
 const years = Array.from({ length: currentYear - 1899 }, (_, index) => currentYear - index)
 const hours = Array.from({ length: 24 }, (_, value) => value)
@@ -38,8 +39,16 @@ const displayValue = computed(() => {
   if (props.type === 'time') return `${props.modelValue} น.`
   const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(props.modelValue)
   if (!match) return props.modelValue
-  return `${Number(match[1])} ${thaiMonths[Number(match[2]) - 1]} ${match[3]}`
+  return `${Number(match[1])} ${thaiMonths[Number(match[2]) - 1]} ${Number(match[3]) + 543}`
 })
+const pad = value => String(value).padStart(2, '0')
+const draftDescription = computed(() => birthDateDescription(`${pad(day.value)}/${pad(month.value)}/${year.value}`, props.birthTime, props.timezoneId))
+const numberOptions = values => values.map(value => ({ value, label: pad(value) }))
+const dayOptions = computed(() => numberOptions(days.value))
+const monthOptions = thaiMonths.map((label, index) => ({ value: index + 1, label }))
+const yearOptions = years.map(value => ({ value, label: String(value + 543) }))
+const hourOptions = numberOptions(hours)
+const minuteOptions = numberOptions(minutes)
 
 watch([month, year], () => {
   if (day.value > days.value.length) day.value = days.value.length
@@ -52,7 +61,7 @@ watch(isOpen, async (open) => {
     document.body.style.overflow = previousBodyOverflow
   }
   await nextTick()
-  if (open && isOpen.value) dialog.value?.querySelector('select')?.focus()
+  if (open && isOpen.value) dialog.value?.querySelector('[role="spinbutton"]')?.focus()
   else if (!isOpen.value && trigger.value?.isConnected) trigger.value.focus()
 })
 
@@ -61,7 +70,7 @@ function handleDialogKey(event) {
     event.preventDefault()
     closePicker()
   } else if (event.key === 'Tab') {
-    const controls = [...dialog.value.querySelectorAll('button, select')]
+    const controls = [...dialog.value.querySelectorAll('button, [role="spinbutton"]')]
     const first = controls[0]
     const last = controls.at(-1)
     if (event.shiftKey && document.activeElement === first) {
@@ -75,6 +84,7 @@ function handleDialogKey(event) {
 }
 
 function openPicker() {
+  if (props.disabled) return
   if (props.type === 'date') {
     const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(props.modelValue)
     if (match) {
@@ -116,7 +126,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="mobile-date-time-picker">
-    <button ref="trigger" type="button" class="mobile-picker-trigger" :class="{ empty: !modelValue }" aria-haspopup="dialog" :aria-expanded="isOpen" :aria-controls="isOpen ? dialogId : undefined" @click="openPicker">
+    <button ref="trigger" type="button" class="mobile-picker-trigger" :disabled="disabled" :class="{ empty: !modelValue }" aria-haspopup="dialog" :aria-expanded="isOpen" :aria-controls="isOpen ? dialogId : undefined" @click="openPicker">
       <span>{{ displayValue }}</span>
       <i :class="type === 'date' ? 'pi pi-calendar' : 'pi pi-clock'" />
     </button>
@@ -128,26 +138,27 @@ onBeforeUnmount(() => {
             <div class="mobile-picker-handle" />
             <div class="mobile-picker-heading">
               <div>
-                <small>{{ type === 'date' ? 'วัน / เดือน / ปี ค.ศ.' : 'รูปแบบ 24 ชั่วโมง' }}</small>
+                <small>{{ type === 'date' ? 'วัน / เดือน / ปี พ.ศ.' : 'รูปแบบ 24 ชั่วโมง' }}</small>
                 <h3>{{ type === 'date' ? 'เลือกวันเกิด' : 'เลือกเวลาเกิด' }}</h3>
               </div>
               <button type="button" aria-label="ปิด" @click="closePicker"><i class="pi pi-times" /></button>
             </div>
 
-            <div v-if="type === 'date'" class="mobile-picker-columns date-columns">
-              <label><span>วัน</span><select v-model.number="day"><option v-for="item in days" :key="item" :value="item">{{ item }}</option></select></label>
-              <label><span>เดือน</span><select v-model.number="month"><option v-for="(item, index) in thaiMonths" :key="item" :value="index + 1">{{ item }}</option></select></label>
-              <label><span>ปี ค.ศ.</span><select v-model.number="year"><option v-for="item in years" :key="item" :value="item">{{ item }}</option></select></label>
+            <div v-if="type === 'date'" class="mobile-picker-columns date-columns wheel-columns">
+              <PickerWheel v-model="day" :options="dayOptions" label="วัน" />
+              <PickerWheel v-model="month" :options="monthOptions" label="เดือน" />
+              <PickerWheel v-model="year" :options="yearOptions" label="ปี พ.ศ." />
             </div>
-            <div v-else class="mobile-picker-columns time-columns">
-              <label><span>ชั่วโมง</span><select v-model.number="hour"><option v-for="item in hours" :key="item" :value="item">{{ String(item).padStart(2, '0') }}</option></select></label>
-              <b>:</b>
-              <label><span>นาที</span><select v-model.number="minute"><option v-for="item in minutes" :key="item" :value="item">{{ String(item).padStart(2, '0') }}</option></select></label>
+            <div v-else class="mobile-picker-columns time-columns wheel-columns">
+              <PickerWheel v-model="hour" :options="hourOptions" label="ชั่วโมง" />
+              <PickerWheel v-model="minute" :options="minuteOptions" label="นาที" />
             </div>
+            <p v-if="type === 'date' && draftDescription" class="picker-date-description" aria-live="polite">{{ draftDescription.weekday }} · ปี{{ draftDescription.animal }}ตามปาจื้อ</p>
 
             <div class="mobile-picker-actions">
               <button v-if="type === 'time' && allowEmpty" type="button" class="mobile-picker-clear" @click="clearTime">ไม่ทราบเวลาเกิด</button>
-              <button type="button" class="mobile-picker-confirm" @click="confirm">ยืนยัน{{ type === 'date' ? 'วันเกิด' : 'เวลา' }}</button>
+              <button type="button" class="mobile-picker-cancel" @click="closePicker">ยกเลิก</button>
+              <button type="button" class="mobile-picker-confirm" @click="confirm">ตกลง</button>
             </div>
           </section>
         </div>

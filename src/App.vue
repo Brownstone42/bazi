@@ -13,6 +13,10 @@ import MembershipSummary from './components/MembershipSummary.vue'
 import BillingPanel from './components/BillingPanel.vue'
 import PackageSelection from './components/PackageSelection.vue'
 import WelcomeOverview from './components/WelcomeOverview.vue'
+import ProfileAccount from './components/ProfileAccount.vue'
+import { birthDateDescription } from './services/birth-display'
+import { bloodTypes, emptyProfileDetails, normalizeProfileDetails, relationshipStatuses } from './services/profile-details'
+import { canReadBazi } from './services/profile-readiness'
 import { BIRTH_EDIT_INTERVAL, birthProfileChanged, birthEditBlocked, formatBirthEditDate } from './services/profile-policy'
 import { loadComparisonPeople, saveComparisonPerson } from './services/comparison-people'
 import './styles/identity.css'
@@ -49,9 +53,22 @@ const liffId = import.meta.env.VITE_LIFF_ID
 const form = reactive({
   birthDate: '',
   birthTime: '',
-  gender: 'male',
+  gender: 'unspecified',
   timezoneId: 'Asia/Bangkok'
 })
+const profileDetails = reactive(emptyProfileDetails())
+const profileBloodConsent = ref(false)
+const birthDescription = computed(() => birthDateDescription(form.birthDate, form.birthTime, form.timezoneId))
+const localDetailsKey = 'bazi-local-profile-details-v1'
+const profileSaved = ref(false)
+const profileNotice = ref('')
+const unknownBirthTime = ref(false)
+watch(unknownBirthTime, value => { if (value) form.birthTime = '' })
+const profileGenderOptions = [{ label: 'ชาย', value: 'male' }, { label: 'หญิง', value: 'female' }, { label: 'ไม่ระบุ', value: 'unspecified' }]
+function setTimezoneUnknown(value) {
+  profileDetails.timezoneUnknown = value
+  if (value) form.timezoneId = 'Asia/Bangkok'
+}
 
 const comparisonForm = reactive({
   name: '',
@@ -320,8 +337,10 @@ function viewFromHash() {
 }
 
 function calculateAndDisplay(input) {
-  chart.value = calculateChart(input)
+  chart.value = canReadBazi(input) ? calculateChart(input) : null
   calculatedInput.value = input
+  unknownBirthTime.value = !input.birthTime
+  profileNotice.value = chart.value ? '' : 'บันทึกโปรไฟล์แล้ว กรุณาระบุเวลาเกิดและเพศก่อนเปิดปาจื้อ ถนนชีวิต เปรียบเทียบ และปฏิทิน'
   selectedLuckCycleIndex.value = null
   if (isBlindTestMode) startBlindTest()
 }
@@ -445,15 +464,17 @@ async function openSavedComparison(report) {
 }
 
 async function saveBirthProfile(input) {
+  const details = normalizeProfileDetails({ ...profileDetails, bloodConsent: profileBloodConsent.value })
   if (lineSession.status === 'local') {
     saveLocalBirthProfile(window.localStorage, input)
+    window.localStorage.setItem(localDetailsKey, JSON.stringify(details))
     return
   }
   if (!lineSession.idToken) return
   accountSync.status = 'saving'
   accountSync.error = ''
   try {
-    const account = await syncLineAccount({ idToken: lineSession.idToken, birthProfile: input })
+    const account = await syncLineAccount({ idToken: lineSession.idToken, birthProfile: input, profileDetails: details })
     applyEntitlement(account.entitlement)
     profileVersion.value = account.birthProfile?.profile_version ?? null
     nextBirthEditAt.value = account.nextBirthEditAt ?? null
@@ -473,7 +494,9 @@ async function submit() {
   error.value = ''
   try {
     const input = { ...form }
-    const nextChart = calculateChart(input)
+    const nextChart = canReadBazi(input) ? calculateChart(input) : null
+    // Still validate the date even when the profile cannot produce a Bazi reading yet.
+    if (!birthDateDescription(input.birthDate)) throw new Error('กรุณาเลือกวันเกิดที่ถูกต้อง')
     const changed = birthProfileChanged(calculatedInput.value, input)
     if (changed && lineSession.status !== 'local' && !isBlindTestMode) {
       if (birthEditBlocked(nextBirthEditAt.value)) {
@@ -483,6 +506,8 @@ async function submit() {
       if (!window.confirm(`ยืนยันแก้ข้อมูลเกิดหรือไม่?\nรายงานเปรียบเทียบเดิมจะถูกทำเครื่องหมายว่าเป็นข้อมูลเก่า ไม่ลบและไม่คืนโควต้า\nปฏิทินจะคำนวณใหม่ สิทธิ์ Premium และโควต้าไม่เปลี่ยน\nแก้ข้อมูลเกิดได้อีกครั้งประมาณ ${nextDate}`)) return
     }
     if (!isBlindTestMode) await saveBirthProfile(input)
+    profileSaved.value = true
+    profileNotice.value = nextChart ? '' : 'บันทึกโปรไฟล์แล้ว กรุณาระบุเวลาเกิดและเพศก่อนเปิดปาจื้อ ถนนชีวิต เปรียบเทียบ และปฏิทิน'
     chart.value = nextChart
     calculatedInput.value = input
     selectedLuckCycleIndex.value = null
@@ -495,7 +520,7 @@ async function submit() {
     }
     editingBirthProfile.value = false
     if (isBlindTestMode) startBlindTest()
-    else setActiveView('profile')
+    else setActiveView(nextChart ? 'profile' : 'account')
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'ไม่สามารถคำนวณผังได้'
   } finally {
@@ -614,11 +639,14 @@ async function connectLineAccount() {
         localComparisonReader.value = (await import('./services/comparison-reading.js')).buildComparisonReading
       }
       lineSession.profile = { ...mockUser }
+      Object.assign(profileDetails, emptyProfileDetails(), JSON.parse(window.localStorage.getItem(localDetailsKey) || '{}'))
+      profileBloodConsent.value = profileDetails.bloodConsent
       comparisonPeople.value = loadComparisonPeople(window.localStorage)
       if (comparisonPeople.value.length) selectComparisonPerson(comparisonPeople.value[0])
       const stored = loadLocalBirthProfile(window.localStorage)
       if (stored) {
         Object.assign(form, stored)
+        profileSaved.value = true
         calculateAndDisplay({ ...form })
       } else setActiveView('account')
       accountLoaded.value = true
@@ -629,6 +657,8 @@ async function connectLineAccount() {
       accountSync.error = ''
       try {
         const account = await syncLineAccount({ idToken: session.idToken })
+        Object.assign(profileDetails, emptyProfileDetails(), account.profileDetails || {})
+        profileBloodConsent.value = profileDetails.bloodConsent
         applyEntitlement(account.entitlement)
         savedComparisons.value = account.comparisonReports ?? []
         profileVersion.value = account.birthProfile?.profile_version ?? null
@@ -636,6 +666,7 @@ async function connectLineAccount() {
         const storedBirthProfile = birthProfileToForm(account.birthProfile)
         if (storedBirthProfile) {
           Object.assign(form, storedBirthProfile)
+          profileSaved.value = true
           calculateAndDisplay({ ...form })
         } else setActiveView('account')
         accountSync.status = 'synced'
@@ -786,7 +817,7 @@ onBeforeUnmount(() => {
 })
 
 if (isBlindTestMode) {
-  Object.assign(form, { birthDate: '26/08/1989', birthTime: '11:30' })
+  Object.assign(form, { birthDate: '26/08/1989', birthTime: '11:30', gender: 'male' })
   submit()
 }
 </script>
@@ -802,30 +833,10 @@ if (isBlindTestMode) {
           {{ isBlindTestMode ? 'เครื่องมือภายในสำหรับทดสอบคุณภาพคำอ่านโดยไม่เฉลยดวงล่วงหน้า' : 'ค้นพบจุดเด่น เข้าใจวิธีของตัวเอง และนำไปใช้กับชีวิต' }}
         </p>
       </div>
-      <div v-if="!isBlindTestMode" class="line-account" :class="`line-account-${lineSession.status}`">
-        <img
-          v-if="lineSession.profile?.pictureUrl"
-          :src="lineSession.profile.pictureUrl"
-          alt="รูปโปรไฟล์ LINE"
-        />
-        <i v-else :class="lineSession.status === 'initializing' ? 'pi pi-spin pi-spinner' : 'pi pi-user'" />
-        <div>
-          <strong v-if="lineSession.status === 'authenticated'">สวัสดี {{ lineSession.profile.displayName }}</strong>
-          <strong v-else-if="lineSession.status === 'local'">สวัสดี {{ lineSession.profile?.displayName || 'คุณอนวัช' }}</strong>
-          <strong v-else-if="lineSession.status === 'error'">เชื่อม LINE ไม่สำเร็จ</strong>
-          <strong v-else-if="lineSession.status === 'unconfigured'">ยังไม่ได้ตั้งค่า LINE</strong>
-          <strong v-else>กำลังเชื่อม LINE</strong>
-          <small v-if="lineSession.status === 'authenticated'">{{ lineAccountSubtitle }}</small>
-          <small v-else-if="lineSession.status === 'local'">บัญชีจำลอง · บันทึกข้อมูลในเครื่องนี้</small>
-          <small v-else-if="lineSession.status === 'error'">ลองปิดแล้วเปิดจากลิงก์ LIFF อีกครั้ง</small>
-          <small v-else-if="lineSession.status === 'unconfigured'">กรุณากำหนด LIFF ID</small>
-          <small v-else>รอสักครู่</small>
-        </div>
-        <button v-if="accountReady" type="button" class="account-profile-button" :aria-current="editingBirthProfile ? 'page' : undefined" @click="setActiveView('account')"><i class="pi pi-user-edit" /> โปรไฟล์</button>
-      </div>
+      <button v-if="!isBlindTestMode && accountReady && profileSaved" type="button" class="account-profile-button" :aria-current="editingBirthProfile ? 'page' : undefined" @click="setActiveView('account')"><i class="pi pi-user-edit" /> โปรไฟล์</button>
     </header>
 
-    <WelcomeOverview v-if="!isBlindTestMode && accountReady && !chart" @start="startWelcomeProfile" />
+    <WelcomeOverview v-if="!isBlindTestMode && accountReady && !profileSaved" @start="startWelcomeProfile" />
 
     <div v-if="!isBlindTestMode && !accountReady" class="account-loading" role="status">
       <p>{{ accountSync.error || (['error', 'unconfigured', 'unauthenticated'].includes(lineSession.status) ? 'ยังเปิดบัญชีไม่ได้ กรุณาลองเชื่อมต่ออีกครั้ง' : 'กำลังเปิดข้อมูลของคุณ…') }}</p>
@@ -902,19 +913,19 @@ if (isBlindTestMode) {
       @packages="openPricing()"
     />
     <section v-if="isBlindTestMode || (accountReady && activeView === 'profile' && (editingBirthProfile || !chart))" class="workspace" :class="{ 'profile-workspace': !isBlindTestMode }">
-      <form ref="birthForm" class="form-card" tabindex="-1" @submit.prevent="submit">
+      <form ref="birthForm" class="form-card" :class="{ 'birth-profile-form': !isBlindTestMode }" tabindex="-1" @submit.prevent="submit">
         <div class="section-heading">
           <span v-if="isBlindTestMode" class="step">01</span>
           <div>
-            <h2>{{ isBlindTestMode ? 'ข้อมูลผู้ทดสอบ' : chart ? 'โปรไฟล์ของฉัน' : 'เริ่มต้นด้วยข้อมูลวันเกิดของคุณ' }}</h2>
-            <p>{{ isBlindTestMode ? 'ระบบจะใช้ข้อมูลคำนวณคำตอบ แต่ยังไม่แสดงผลให้เห็น' : chart ? 'แก้ข้อมูลเกิดแล้วบันทึก เพื่ออัปเดตคำอ่านของคุณ' : 'กรอกวัน เวลา และเขตเวลาที่เกิดก่อน เพื่อเปิดคำอ่านปาจื้อของคุณ' }}</p>
+            <h2>{{ isBlindTestMode ? 'ข้อมูลผู้ทดสอบ' : profileSaved ? 'โปรไฟล์ของฉัน' : 'เริ่มต้นด้วยข้อมูลวันเกิดของคุณ' }}</h2>
+            <p>{{ isBlindTestMode ? 'ระบบจะใช้ข้อมูลคำนวณคำตอบ แต่ยังไม่แสดงผลให้เห็น' : 'บันทึกโปรไฟล์ได้แม้ไม่ทราบเวลาเกิด แต่ปาจื้อต้องใช้เวลาเกิดและเพศ' }}</p>
           </div>
         </div>
 
         <div class="field-grid">
           <label class="field">
-            <span>วันเกิด (วัน/เดือน/ปี ค.ศ.)</span>
-            <MobileDateTimePicker v-model="form.birthDate" type="date" placeholder="เลือกวันเกิด" />
+            <span>วันเกิด</span>
+            <MobileDateTimePicker v-model="form.birthDate" type="date" :birth-time="form.birthTime" :timezone-id="form.timezoneId" placeholder="เลือกวันเกิด" />
             <DatePicker
               v-model="form.birthDate"
               class="desktop-date-time-picker"
@@ -925,10 +936,12 @@ if (isBlindTestMode) {
               fluid
               required
             />
+            <small v-if="birthDescription" class="birth-date-description">{{ birthDescription.weekday }} · ปี{{ birthDescription.animal }}ตามปาจื้อ</small>
           </label>
-          <label class="field">
-            <span>เวลาเกิด (รูปแบบ 24 ชั่วโมง)</span>
-            <MobileDateTimePicker v-model="form.birthTime" type="time" placeholder="เลือกเวลาเกิด" />
+          <div class="field">
+            <span>เวลาเกิด <small>(24 ชั่วโมง)</small></span>
+            <MobileDateTimePicker v-model="form.birthTime" type="time" :disabled="unknownBirthTime" placeholder="เลือกเวลาเกิด" />
+            <label class="profile-checkbox"><input v-model="unknownBirthTime" type="checkbox" /> ไม่ทราบเวลาเกิด</label>
             <DatePicker
               v-model="birthTimePicker"
               class="desktop-date-time-picker"
@@ -939,17 +952,21 @@ if (isBlindTestMode) {
               placeholder="เลือกเวลา"
               fluid
               required
+              :disabled="unknownBirthTime"
             >
               <template #dropdownicon><i class="pi pi-clock" /></template>
             </DatePicker>
-          </label>
+          </div>
           <label class="field field-wide">
-            <span>เพศ</span>
-            <Select v-model="form.gender" :options="genderOptions" option-label="label" option-value="value" />
+            <span>เพศกำเนิด</span>
+            <div class="profile-chip-group" role="group" aria-label="เพศกำเนิด">
+              <button v-for="option in profileGenderOptions" :key="option.value" type="button" :aria-pressed="form.gender === option.value" @click="form.gender = option.value">{{ option.label }}</button>
+            </div>
+            <small v-if="form.gender === 'unspecified'" class="profile-field-hint">บันทึกได้ แต่ยังไม่เปิดคำอ่านปาจื้อจนกว่าจะระบุเพศ</small>
           </label>
         </div>
 
-        <label class="field timezone-field">
+        <div class="field timezone-field">
           <span>เขตเวลาที่เกิด</span>
           <Select
             v-model="form.timezoneId"
@@ -958,19 +975,39 @@ if (isBlindTestMode) {
             option-value="value"
             filter
             filter-placeholder="ค้นหาเมืองหรือเขตเวลา"
+            :disabled="profileDetails.timezoneUnknown"
           />
-          <small>เลือกตามประเทศหรือเมืองที่เกิด</small>
-        </label>
+          <label class="profile-checkbox"><input :checked="profileDetails.timezoneUnknown" type="checkbox" @change="setTimezoneUnknown($event.target.checked)" /> ไม่ทราบเขตเวลาที่เกิด</label>
+          <small>{{ profileDetails.timezoneUnknown ? 'ใช้ค่าเริ่มต้น: กรุงเทพฯ ประเทศไทย (UTC+7)' : 'เลือกตามประเทศหรือเมืองที่เกิด' }}</small>
+        </div>
 
-        <p v-if="chart && !isBlindTestMode" class="comparison-topic-hint">
+        <template v-if="!isBlindTestMode">
+          <section class="profile-optional" aria-labelledby="blood-type-title">
+            <h3 id="blood-type-title">กรุ๊ปเลือด <small>(ไม่บังคับ)</small></h3>
+            <div class="profile-chip-group blood-type-chips" role="group" aria-label="กรุ๊ปเลือด">
+              <button v-for="bloodType in [...bloodTypes, '']" :key="bloodType" type="button" :aria-pressed="profileDetails.bloodType === bloodType" @click="profileDetails.bloodType = bloodType; profileBloodConsent = false">{{ bloodType || 'ไม่ระบุ' }}</button>
+            </div>
+            <label v-if="profileDetails.bloodType" class="profile-consent"><input v-model="profileBloodConsent" type="checkbox" /><span>ฉันยินยอมให้เก็บกรุ๊ปเลือดเพื่อแสดงในโปรไฟล์ ไม่ใช้คำนวณปาจื้อ ถอนความยินยอมได้โดยเลือก “ไม่ระบุ” แล้วบันทึก <a href="/privacy.html#profile-details" target="_blank" rel="noopener">รายละเอียด</a></span></label>
+          </section>
+          <section class="profile-optional" aria-labelledby="relationship-status-title">
+            <h3 id="relationship-status-title">สถานะตอนนี้ <small>(ไม่บังคับ)</small></h3>
+            <div class="profile-chip-group" role="group" aria-label="สถานะตอนนี้">
+              <button v-for="option in [...relationshipStatuses, { label: 'ไม่ระบุ', value: '' }]" :key="option.value" type="button" :aria-pressed="profileDetails.relationshipStatus === option.value" @click="profileDetails.relationshipStatus = option.value">{{ option.label }}</button>
+            </div>
+          </section>
+          <ProfileAccount v-if="profileSaved && editingBirthProfile" :session="lineSession" :subtitle="lineAccountSubtitle" />
+        </template>
+
+        <p v-if="profileSaved && !isBlindTestMode" class="comparison-topic-hint">
           {{ lineSession.status === 'local' ? 'โหมดทดสอบ: แก้ข้อมูลเกิดได้ไม่จำกัด' : 'แก้วันเกิด เวลาเกิด เพศ หรือเขตเวลาได้ 1 ครั้งต่อ 30 วัน บันทึกข้อมูลเดิมไม่นับเป็นการแก้ไข' }}
           <span v-if="nextBirthEditAt && lineSession.status !== 'local'"> · แก้ไขได้อีกครั้ง {{ formatBirthEditDate(nextBirthEditAt) }}</span>
         </p>
         <p v-if="error" class="comparison-error" role="alert">{{ error }}</p>
+        <p v-if="profileNotice" class="profile-saved-notice" role="status">{{ profileNotice }}</p>
         <p class="comparison-topic-hint">อ่านรายละเอียดการใช้ข้อมูลเกิดและช่องทางขอลบได้ที่ <a href="/privacy.html" target="_blank" rel="noopener">นโยบายความเป็นส่วนตัว</a></p>
         <Button
           type="submit"
-          :label="isBlindTestMode ? 'เริ่มการทดสอบ' : chart ? 'บันทึกโปรไฟล์' : 'บันทึกและดูพื้นดวงของฉัน'"
+          :label="isBlindTestMode ? 'เริ่มการทดสอบ' : !canReadBazi(form) ? 'บันทึกโปรไฟล์' : profileSaved ? 'บันทึกโปรไฟล์' : 'บันทึกและดูพื้นดวงของฉัน'"
           :loading="profileSaving"
           :disabled="profileSaving"
           icon="pi pi-sparkles"

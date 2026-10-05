@@ -14,8 +14,8 @@ async function callLineSession({ idToken, payload = {}, fetchImpl = fetch }) {
   return responsePayload
 }
 
-export function syncLineAccount({ idToken, birthProfile, fetchImpl = fetch }) {
-  return callLineSession({ idToken, payload: { action: 'sync', ...(birthProfile ? { birthProfile } : {}) }, fetchImpl })
+export function syncLineAccount({ idToken, birthProfile, profileDetails, fetchImpl = fetch }) {
+  return callLineSession({ idToken, payload: { action: 'sync', ...(birthProfile ? { birthProfile } : {}), ...(profileDetails === undefined ? {} : { profileDetails }) }, fetchImpl })
 }
 
 export function reserveComparison({ idToken, comparisonProfile, profileVersion, fetchImpl = fetch }) {

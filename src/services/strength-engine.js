@@ -19,7 +19,7 @@ const controls = {
 const producerOf = Object.fromEntries(Object.entries(produces).map(([from, to]) => [to, from]))
 const controllerOf = Object.fromEntries(Object.entries(controls).map(([from, to]) => [to, from]))
 
-const seasonalStrength = {
+export const seasonalStrength = {
   寅: { wood: 4, fire: 2, earth: -2, metal: -4, water: 1 },
   卯: { wood: 4, fire: 2, earth: -2, metal: -4, water: 1 },
   辰: { wood: 1, fire: -1, earth: 3, metal: -1, water: 0 },

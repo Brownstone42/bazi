@@ -1,3 +1,6 @@
+import './components/TodayPreview.vue'
+import './components/LoveHub.vue'
+import './components/MyChartPreview.vue'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -9,7 +12,7 @@ import { fetchPersonalCalendar } from './services/calendar-api'
 import { buildAuthorizedCalendar } from '../netlify/lib/calendar.mjs'
 import { buildComparisonReading } from './services/comparison-reading'
 
-vi.mock('./services/liff-auth', () => ({ initializeLineSession: vi.fn() }))
+vi.mock('./services/liff-auth', async importOriginal => ({ ...await importOriginal(), initializeLineSession: vi.fn() }))
 vi.mock('./services/account-api', async importOriginal => ({ ...await importOriginal(), syncLineAccount: vi.fn(), reserveComparison: vi.fn() }))
 vi.mock('./services/calendar-api', () => ({ fetchPersonalCalendar: vi.fn() }))
 
@@ -18,14 +21,19 @@ const profile = { birth_date: '1989-08-26', birth_time: '11:30:00', gender: 'mal
 const account = () => ({ birthProfile: profile, entitlement: { planId: 'free' }, comparisonReports: [] })
 let wrapper
 async function openView(name) {
-  await wrapper.findAll('.view-navigation button').find(button => button.text().includes(name)).trigger('click')
+  if (name === 'พื้นดวง' && !wrapper.find('.view-navigation').exists()) {
+    await wrapper.findAll('.app-navigation button').find(button => button.text().includes('หน้าแรก')).trigger('click')
+    await wrapper.get('.bazi-choice').trigger('click')
+  } else {
+    await wrapper.findAll('.app-navigation button, .view-navigation button').find(button => button.text().includes(name)).trigger('click')
+  }
   await flushPromises()
 }
 beforeEach(() => {
   vi.clearAllMocks()
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(now)
-  window.history.replaceState(null, '', '/')
+  window.history.replaceState(null, '', '/#profile')
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
   vi.stubGlobal('fetch', vi.fn(() => { throw new Error('Unexpected network call in UI test') }))
   initializeLineSession.mockResolvedValue({ status: 'authenticated', idToken: 'mock-token', profile: { displayName: 'ผู้ทดสอบ' } })
@@ -36,10 +44,143 @@ afterEach(() => {
   wrapper?.unmount()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
   vi.useRealTimers()
 })
 
 describe('main navigation with an isolated mock account', () => {
+  it('isolates the identity60 preview profile, reuses the form, and keeps old views out', async () => {
+    const oldKey = 'bazi-local-birth-profile-v1'
+    const newKey = `identity60-preview:${oldKey}`
+    const oldValue = window.localStorage.getItem(oldKey)
+    const newValue = window.localStorage.getItem(newKey)
+    const detailsKey = 'identity60-preview:profile-details'
+    const oldDetails = window.localStorage.getItem(detailsKey)
+    const birth = { birthDate: '26/08/1989', birthTime: '11:30', gender: 'male', timezoneId: 'Asia/Bangkok' }
+    try {
+      window.localStorage.setItem(oldKey, JSON.stringify({ ...birth, birthDate: '02/04/1992' }))
+      window.localStorage.removeItem(newKey)
+      window.history.replaceState(null, '', '/?version=identity60#home')
+      initializeLineSession.mockResolvedValue({ status: 'local', inClient: false })
+      wrapper = shallowMount(App)
+      await flushPromises()
+      expect(wrapper.get('form.form-card').exists()).toBe(true)
+      expect(wrapper.find('.reading-home').exists()).toBe(false)
+      expect(wrapper.findComponent({ name: 'MyChartPreview' }).exists()).toBe(false)
+      wrapper.unmount()
+      window.localStorage.setItem(newKey, JSON.stringify(birth))
+      window.history.replaceState(null, '', '/?version=identity60#home')
+      wrapper = shallowMount(App)
+      await flushPromises()
+      expect(wrapper.findComponent({ name: 'MyChartPreview' }).exists()).toBe(true)
+      expect(wrapper.findComponent({ name: 'PackageSelection' }).exists()).toBe(false)
+      expect(wrapper.find('.view-navigation').exists()).toBe(false)
+      await wrapper.findAll('.app-navigation button').find(button => button.text() === 'วันนี้').trigger('click')
+      await flushPromises()
+      expect(wrapper.findComponent({ name: 'TodayPreview' }).exists()).toBe(true)
+      expect(wrapper.findComponent({ name: 'MyChartPreview' }).exists()).toBe(false)
+      expect(window.location.hash).toBe('#today')
+      wrapper.findComponent({ name: 'PreviewHeader' }).vm.$emit('profile')
+      await flushPromises()
+      if (wrapper.find('.profile-consent input').exists()) await wrapper.get('.profile-consent input').setValue(true)
+      await wrapper.get('form.form-card').trigger('submit')
+      await flushPromises()
+      expect(wrapper.findComponent({ name: 'MyChartPreview' }).exists()).toBe(true)
+      expect(JSON.parse(window.localStorage.getItem(oldKey)).birthDate).toBe('02/04/1992')
+      expect(JSON.parse(window.localStorage.getItem(newKey))).toEqual(birth)
+      expect(syncLineAccount).not.toHaveBeenCalled()
+      expect(fetchPersonalCalendar).not.toHaveBeenCalled()
+    } finally {
+      for (const [key, value] of [[oldKey, oldValue], [newKey, newValue], [detailsKey, oldDetails]]) {
+        if (value === null) window.localStorage.removeItem(key)
+        else window.localStorage.setItem(key, value)
+      }
+    }
+  })
+  it('keeps profile and packages outside Bazi navigation and accessible from questions', async () => {
+    window.history.replaceState(null, '', '/#questions')
+    wrapper = shallowMount(App)
+    await flushPromises()
+    expect(wrapper.findComponent({ name: 'BaziQuestions' }).exists()).toBe(true)
+    await openView('โปรไฟล์')
+    expect(window.location.hash).toBe('#account')
+    expect(wrapper.get('.hero h1').text()).toBe('โปรไฟล์ของฉัน')
+    expect(wrapper.find('.view-navigation').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'ProfileAccount' }).exists()).toBe(true)
+    await openView('แพ็กเกจ')
+    expect(window.location.hash).toBe('#pricing')
+    expect(wrapper.get('.hero h1').text()).toBe('แพ็กเกจ')
+    expect(wrapper.find('.view-navigation').exists()).toBe(false)
+    expect(wrapper.find('form.form-card').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'PackageSelection' }).exists()).toBe(true)
+    await openView('พื้นดวง')
+    expect(wrapper.findAll('.view-navigation button')).toHaveLength(5)
+    expect(wrapper.get('.view-navigation').text()).not.toMatch(/โปรไฟล์|แพ็กเกจ/)
+    expect(syncLineAccount).toHaveBeenCalledTimes(1)
+    expect(fetchPersonalCalendar).not.toHaveBeenCalled()
+    expect(reserveComparison).not.toHaveBeenCalled()
+  })
+
+  it.each([['#account', 'โปรไฟล์ของฉัน'], ['#pricing', 'แพ็กเกจ']])('opens standalone %s on reload for an incomplete saved profile', async (hash, title) => {
+    window.history.replaceState(null, '', `/${hash}`)
+    syncLineAccount.mockResolvedValue({ ...account(), birthProfile: { ...profile, birth_time: null, gender: 'unspecified' } })
+    wrapper = shallowMount(App)
+    await flushPromises()
+    expect(wrapper.get('.hero h1').text()).toBe(title)
+    expect(wrapper.find('.view-navigation').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'IdentityReading' }).exists()).toBe(false)
+    expect(wrapper.find('form.form-card').exists()).toBe(hash === '#account')
+    expect(wrapper.findComponent({ name: 'PackageSelection' }).exists()).toBe(hash === '#pricing')
+    expect(syncLineAccount).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens the choice page by default and enters Bazi without refreshing the account', async () => {
+    window.history.replaceState(null, '', '/')
+    wrapper = shallowMount(App)
+    await flushPromises()
+    expect(wrapper.find('.reading-home').exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'IdentityReading' }).exists()).toBe(false)
+    expect(wrapper.find('.view-navigation').exists()).toBe(false)
+    await wrapper.get('.bazi-choice').trigger('click')
+    await flushPromises()
+    expect(wrapper.findComponent({ name: 'IdentityReading' }).exists()).toBe(true)
+    expect(syncLineAccount).toHaveBeenCalledTimes(1)
+    expect(fetchPersonalCalendar).not.toHaveBeenCalled()
+  })
+
+  it('requires complete saved profiles to open questions while keeping home accessible', async () => {
+    window.history.replaceState(null, '', '/')
+    syncLineAccount.mockResolvedValue({ ...account(), birthProfile: { ...profile, birth_time: null, gender: 'unspecified' } })
+    wrapper = shallowMount(App)
+    await flushPromises()
+    await wrapper.get('.question-choice').trigger('click')
+    await flushPromises()
+    expect(wrapper.findComponent({ name: 'BaziQuestions' }).exists()).toBe(false)
+    expect(wrapper.find('form.form-card').exists()).toBe(true)
+    await openView('หน้าแรก')
+    expect(wrapper.find('.reading-home').exists()).toBe(true)
+    await wrapper.get('.bazi-choice').trigger('click')
+    expect(wrapper.find('form.form-card').exists()).toBe(true)
+    expect(syncLineAccount).toHaveBeenCalledTimes(1)
+    expect(fetchPersonalCalendar).not.toHaveBeenCalled()
+    expect(reserveComparison).not.toHaveBeenCalled()
+  })
+
+  it('requires birth data even for a direct Tarot link and shows choices only after saving', async () => {
+    window.history.replaceState(null, '', '/#tarot')
+    syncLineAccount.mockResolvedValue({ ...account(), birthProfile: null })
+    wrapper = shallowMount(App)
+    await flushPromises()
+    expect(wrapper.find('.tarot-preview').exists()).toBe(false)
+    wrapper.getComponent({ name: 'MobileDateTimePicker' }).vm.$emit('update:modelValue', '02/04/1992')
+    await wrapper.get('form.form-card').trigger('submit')
+    await flushPromises()
+    expect(syncLineAccount).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('.reading-home').exists()).toBe(true)
+    expect(wrapper.find('form.form-card').exists()).toBe(false)
+    expect(fetchPersonalCalendar).not.toHaveBeenCalled()
+  })
+
   it('starts natal reading collapsed and toggles talents and all life-area details together without fetching', async () => {
     wrapper = shallowMount(App, { global: { stubs: { IdentityReading } } })
     await flushPromises()
@@ -100,19 +241,15 @@ describe('main navigation with an isolated mock account', () => {
     const styles = readFileSync('src/styles/main.css', 'utf8')
     expect(styles).toMatch(/\.view-navigation button\s*\{[^}]*width: 100%;[^}]*margin: 0;/)
   })
-  it('shows the introduction only for accounts without a birth profile and starts the form without saving', async () => {
+  it('shows onboarding before the choice page without saving or making readings', async () => {
     syncLineAccount.mockResolvedValue({ ...account(), birthProfile: null })
     wrapper = shallowMount(App)
     await flushPromises()
-    const welcome = wrapper.getComponent({ name: 'WelcomeOverview' })
     const form = wrapper.get('.form-card')
     expect(wrapper.find('.hero-copy').exists()).toBe(false)
-    expect(form.find('button-stub[type="submit"]').attributes('label')).toBe('บันทึกโปรไฟล์')
+    expect(form.find('button-stub[type="submit"]').attributes('label')).toBe('บันทึกข้อมูล')
+    expect(wrapper.find('.reading-home').exists()).toBe(false)
     expect(wrapper.findComponent({ name: 'ProfileAccount' }).exists()).toBe(false)
-    const focus = vi.spyOn(form.element, 'focus')
-    welcome.vm.$emit('start')
-    await flushPromises()
-    expect(focus).toHaveBeenCalledWith({ preventScroll: true })
     expect(wrapper.find('.form-card .step').exists()).toBe(false)
     expect(syncLineAccount).toHaveBeenCalledTimes(1)
     expect(reserveComparison).not.toHaveBeenCalled()
@@ -125,11 +262,12 @@ describe('main navigation with an isolated mock account', () => {
     expect(wrapper.findComponent({ name: 'WelcomeOverview' }).exists()).toBe(false)
     expect(wrapper.findComponent({ name: 'ProfileAccount' }).exists()).toBe(false)
     await wrapper.get('.account-profile-button').trigger('click')
-    expect(wrapper.findAll('.view-navigation button').at(-2).text()).toContain('แพ็กเกจ')
-    expect(wrapper.findAll('.view-navigation button').at(-1).text()).toContain('โปรไฟล์')
+    expect(wrapper.findAll('.app-navigation button').at(-2).text()).toContain('แพ็กเกจ')
+    expect(wrapper.findAll('.app-navigation button').at(-1).text()).toContain('โปรไฟล์')
     expect(wrapper.find('.hero .account-profile-button').exists()).toBe(false)
-    expect(wrapper.findAll('.view-navigation .active')).toHaveLength(1)
-    expect(wrapper.get('.view-navigation .active').text()).toContain('โปรไฟล์')
+    expect(wrapper.find('.view-navigation').exists()).toBe(false)
+    expect(wrapper.findAll('.app-navigation .active')).toHaveLength(1)
+    expect(wrapper.get('.app-navigation .active').text()).toContain('โปรไฟล์')
     expect(wrapper.find('.identity-back').exists()).toBe(false)
     expect(wrapper.findComponent({ name: 'ProfileAccount' }).exists()).toBe(true)
     expect(wrapper.get('.form-card').text()).toContain('โปรไฟล์ของฉัน')
@@ -154,6 +292,7 @@ describe('main navigation with an isolated mock account', () => {
     expect(wrapper.findComponent({ name: 'WelcomeOverview' }).exists()).toBe(false)
     expect(wrapper.findComponent({ name: 'IdentityReading' }).exists()).toBe(false)
     expect(wrapper.find('.view-navigation').exists()).toBe(false)
+    expect(wrapper.get('.app-navigation .active').text()).toContain('โปรไฟล์')
     expect(wrapper.get('.profile-saved-notice').text()).toContain('กรุณาระบุเวลาเกิดและเพศ')
     expect(wrapper.get('.form-card').text()).toContain('โปรไฟล์ของฉัน')
     expect(fetchPersonalCalendar).not.toHaveBeenCalled()
@@ -169,6 +308,8 @@ describe('main navigation with an isolated mock account', () => {
     expect(syncLineAccount).toHaveBeenLastCalledWith(expect.objectContaining({ birthProfile: expect.objectContaining({ birthDate: '26/08/1989', birthTime: '', gender: 'unspecified' }) }))
     expect(wrapper.findComponent({ name: 'IdentityReading' }).exists()).toBe(false)
     expect(wrapper.findComponent({ name: 'WelcomeOverview' }).exists()).toBe(false)
+    expect(wrapper.find('.reading-home').exists()).toBe(true)
+    await wrapper.get('.account-profile-button').trigger('click')
     expect(wrapper.get('.profile-saved-notice').text()).toContain('บันทึกโปรไฟล์แล้ว')
     expect(reserveComparison).not.toHaveBeenCalled()
     expect(fetchPersonalCalendar).not.toHaveBeenCalled()
@@ -208,4 +349,34 @@ describe('main navigation with an isolated mock account', () => {
     expect(fetchPersonalCalendar).toHaveBeenCalledTimes(1)
     expect(fetch).not.toHaveBeenCalled()
   })
+})
+
+it('ships the new navigation in production while preserving account and billing routes', async () => {
+  vi.stubEnv('PROD', true)
+  window.history.replaceState(null, '', '/#home')
+  wrapper=shallowMount(App)
+  await flushPromises()
+  expect(wrapper.findComponent({name:'MyChartPreview'}).exists()).toBe(true)
+  expect(wrapper.findComponent({name:'MyChartPreview'}).attributes('plan')).toBe('Free')
+  wrapper.findComponent({name:'MyChartPreview'}).vm.$emit('packages')
+  await flushPromises()
+  expect(window.location.hash).toBe('#pricing')
+  expect(wrapper.findComponent({name:'PackageSelection'}).exists()).toBe(true)
+  wrapper.findComponent({name:'PreviewHeader'}).vm.$emit('profile')
+  await flushPromises()
+  expect(wrapper.findComponent({name:'MembershipSummary'}).exists()).toBe(true)
+  await openView('ความรัก')
+  const hub=wrapper.findComponent({name:'LovePreview'})
+  expect(typeof hub.vm.$attrs['remote-reader']).toBe('function')
+  expect(typeof hub.vm.$attrs['saved-reader']).toBe('function')
+})
+it('never prefills the demo birth date for a new production account', async()=>{
+  vi.stubEnv('PROD',true)
+  vi.stubEnv('DEV',false)
+  window.history.replaceState(null,'','/?version=identity60#home')
+  syncLineAccount.mockResolvedValue({birthProfile:null,entitlement:{planId:'free'},comparisonReports:[]})
+  wrapper=shallowMount(App)
+  await flushPromises()
+  expect(window.location.hash).toBe('#account')
+  expect(wrapper.findComponent({name:'DatePicker'}).attributes('modelvalue')).toBe('')
 })

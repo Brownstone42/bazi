@@ -7,7 +7,6 @@ import Select from 'primevue/select'
 import Textarea from 'primevue/textarea'
 import MobileDateTimePicker from './components/MobileDateTimePicker.vue'
 import MembershipSummary from './components/MembershipSummary.vue'
-import WelcomeOverview from './components/WelcomeOverview.vue'
 import ProfileAccount from './components/ProfileAccount.vue'
 import { birthDateDescription } from './services/birth-display'
 import { bloodTypes, emptyProfileDetails, normalizeProfileDetails, relationshipStatuses } from './services/profile-details'
@@ -34,6 +33,7 @@ import {
   comparisonBalance,
 } from './services/access-control'
 import { initializeLineSession } from './services/liff-auth'
+import { isLocalDevelopment } from './services/liff-auth'
 import { loadLocalBirthProfile, saveLocalBirthProfile, mockUser } from './services/local-account'
 import {
   birthProfileToForm,
@@ -46,6 +46,20 @@ const CompatibilityScore = defineAsyncComponent(() => import('./components/Compa
 const PersonalDayReading = defineAsyncComponent(() => import('./components/PersonalDayReading.vue'))
 const BillingPanel = defineAsyncComponent(() => import('./components/BillingPanel.vue'))
 const PackageSelection = defineAsyncComponent(() => import('./components/PackageSelection.vue'))
+const BaziQuestions = import.meta.env.DEV ? defineAsyncComponent(() => import('./components/BaziQuestions.vue')) : null
+const questionsPreview = import.meta.env.DEV && isLocalDevelopment(window.location.hostname)
+const identity60Preview = import.meta.env.DEV && isLocalDevelopment(window.location.hostname)
+  && new URLSearchParams(window.location.search).get('version') === 'identity60'
+const newExperience = import.meta.env.PROD || identity60Preview
+const MyChartPreview = defineAsyncComponent(() => import('./components/MyChartPreview.vue'))
+const LovePreview = defineAsyncComponent(() => import('./components/LoveHub.vue'))
+const TodayPreview = defineAsyncComponent(() => import('./components/TodayPreview.vue'))
+const PreviewHeader = defineAsyncComponent(() => import('./components/PreviewHeader.vue'))
+// A separate local namespace keeps prototype edits away from the existing profile.
+const birthStorage = {
+  getItem: key => window.localStorage.getItem(identity60Preview ? `identity60-preview:${key}` : key),
+  setItem: (key, value) => window.localStorage.setItem(identity60Preview ? `identity60-preview:${key}` : key, value),
+}
 const billingSnapshot = ref(null)
 
 const isBlindTestMode = new URLSearchParams(window.location.search).get('mode') === 'blind-test'
@@ -53,15 +67,15 @@ const previewPlan = import.meta.env.DEV ? new URLSearchParams(window.location.se
 const liffId = import.meta.env.VITE_LIFF_ID
 
 const form = reactive({
-  birthDate: '',
-  birthTime: '',
-  gender: 'unspecified',
+  birthDate: identity60Preview ? '26/08/1989' : '',
+  birthTime: identity60Preview ? '11:30' : '',
+  gender: identity60Preview ? 'male' : 'unspecified',
   timezoneId: 'Asia/Bangkok'
 })
 const profileDetails = reactive(emptyProfileDetails())
 const profileBloodConsent = ref(false)
 const birthDescription = computed(() => birthDateDescription(form.birthDate, form.birthTime, form.timezoneId))
-const localDetailsKey = 'bazi-local-profile-details-v1'
+const localDetailsKey = identity60Preview ? 'identity60-preview:profile-details' : 'bazi-local-profile-details-v1'
 const profileSaved = ref(false)
 const profileNotice = ref('')
 const unknownBirthTime = ref(false)
@@ -140,10 +154,6 @@ const timezoneOptions = (() => {
 })()
 const chart = ref(null)
 const birthForm = ref(null)
-function startWelcomeProfile() {
-  birthForm.value?.scrollIntoView?.({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
-  birthForm.value?.focus({ preventScroll: true })
-}
 const editingBirthProfile = ref(window.location.hash === '#account')
 const profileSaving = ref(false)
 const profileVersion = ref(null)
@@ -331,11 +341,14 @@ const lineAccountSubtitle = computed(() => {
 })
 
 function viewFromHash() {
+  if (newExperience) return ['#account', '#today', '#love', '#pricing'].includes(window.location.hash) ? window.location.hash.slice(1) : 'home'
+  if (questionsPreview && window.location.hash === '#questions') return 'questions'
+  if (window.location.hash === '#account') return 'account'
   if (window.location.hash === '#luck') return 'luck'
   if (window.location.hash === '#calendar') return 'calendar'
   if (window.location.hash === '#compare') return 'compare'
   if (window.location.hash === '#pricing') return 'pricing'
-  return 'profile'
+  return window.location.hash === '#profile' ? 'profile' : 'home'
 }
 
 function calculateAndDisplay(input) {
@@ -376,6 +389,24 @@ function savedReportForPerson(person) {
   return savedComparisons.value.find(report => !report.isStale && report.ownerProfileVersion === profileVersion.value &&
     dateKey(report.birthDate) === dateKey(person.birthDate) && (report.birthTime || '').slice(0, 5) === (person.birthTime || '').slice(0, 5) &&
     report.gender === person.gender && report.timezoneId === person.timezoneId && report.relationship === 'unspecified' && report.focus === 'overview')
+}
+
+function savedCoupleReading(person) {
+  const report = savedReportForPerson(person)
+  return report?.result ?? null
+}
+async function readCoupleOnServer(person) {
+  const version = profileVersion.value
+  const existing = savedCoupleReading(person)
+  if (existing) return existing
+  const response = await reserveComparison({ idToken: lineSession.idToken, profileVersion: version,
+    comparisonProfile: { ...person, relationship: 'unspecified', focus: 'overview' } })
+  applyEntitlement(response.entitlement)
+  if (version !== profileVersion.value) throw new Error('ข้อมูลเกิดเปลี่ยนแล้ว กรุณาเปิดผลใหม่')
+  if (!response.allowed) { openPricing('ใช้สิทธิ์เปรียบเทียบครบแล้ว เลือกแพ็กเกจหรือซื้อเครดิตเพิ่ม'); throw new Error('ใช้สิทธิ์เปรียบเทียบครบแล้ว') }
+  if (!response.report?.result) throw new Error('ยังสร้างคำอ่านไม่สำเร็จ กรุณาลองใหม่')
+  upsertSavedComparison(response.report)
+  return response.report.result
 }
 
 async function selectComparisonPerson(person) {
@@ -468,7 +499,7 @@ async function openSavedComparison(report) {
 async function saveBirthProfile(input) {
   const details = normalizeProfileDetails({ ...profileDetails, bloodConsent: profileBloodConsent.value })
   if (lineSession.status === 'local') {
-    saveLocalBirthProfile(window.localStorage, input)
+    saveLocalBirthProfile(birthStorage, input)
     window.localStorage.setItem(localDetailsKey, JSON.stringify(details))
     return
   }
@@ -495,6 +526,7 @@ async function submit() {
   profileSaving.value = true
   error.value = ''
   try {
+    const firstProfile = !profileSaved.value
     const input = { ...form }
     const nextChart = canReadBazi(input) ? calculateChart(input) : null
     // Still validate the date even when the profile cannot produce a Bazi reading yet.
@@ -522,7 +554,7 @@ async function submit() {
     }
     editingBirthProfile.value = false
     if (isBlindTestMode) startBlindTest()
-    else setActiveView(nextChart ? 'profile' : 'account')
+    else setActiveView(newExperience || firstProfile ? 'home' : 'account')
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'ไม่สามารถคำนวณผังได้'
   } finally {
@@ -551,17 +583,13 @@ function moveLuckCycle(direction) {
 }
 
 function setActiveView(view) {
-  if (!chart.value && !isBlindTestMode) view = 'account'
+  if (newExperience && !['account', 'today', 'love', 'pricing'].includes(view)) view = 'home'
+  if (view === 'questions' && !questionsPreview) view = 'home'
+  if (!isBlindTestMode && (!profileSaved.value || (!chart.value && ['profile', 'luck', 'compare', 'calendar', 'questions'].includes(view)))) view = 'account'
   editingBirthProfile.value = view === 'account'
   if (editingBirthProfile.value && calculatedInput.value) Object.assign(form, calculatedInput.value)
-  if (view === 'account') {
-    activeView.value = 'profile'
-    window.location.hash = 'account'
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-    return
-  }
   activeView.value = view
-  const hashes = { luck: 'luck', calendar: 'calendar', compare: 'compare', pricing: 'pricing' }
+  const hashes = { home: 'home', today: 'today', love: 'love', account: 'account', questions: 'questions', luck: 'luck', calendar: 'calendar', compare: 'compare', pricing: 'pricing' }
   window.location.hash = hashes[view] ?? 'profile'
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
@@ -625,8 +653,10 @@ function selectCalendarDay(day) {
 }
 
 function syncViewFromHash() {
-  activeView.value = chart.value || isBlindTestMode ? viewFromHash() : 'profile'
-  editingBirthProfile.value = window.location.hash === '#account' || !chart.value
+  const requested = viewFromHash()
+  const needsProfile = !profileSaved.value || (!chart.value && ['profile', 'luck', 'compare', 'calendar', 'questions'].includes(requested))
+  activeView.value = !isBlindTestMode && needsProfile ? 'account' : requested
+  editingBirthProfile.value = activeView.value === 'account'
 }
 
 function handleViewportResize() {
@@ -647,15 +677,16 @@ async function connectLineAccount() {
         localComparisonReader.value = (await import('./services/comparison-reading.js')).buildComparisonReading
       }
       lineSession.profile = { ...mockUser }
-      Object.assign(profileDetails, emptyProfileDetails(), JSON.parse(window.localStorage.getItem(localDetailsKey) || '{}'))
+      Object.assign(profileDetails, emptyProfileDetails(), JSON.parse(window.localStorage.getItem(localDetailsKey) || (identity60Preview ? '{"bloodType":"A","relationshipStatus":"talking"}' : '{}')))
       profileBloodConsent.value = profileDetails.bloodConsent
-      comparisonPeople.value = loadComparisonPeople(window.localStorage)
+      comparisonPeople.value = identity60Preview ? [] : loadComparisonPeople(window.localStorage)
       if (comparisonPeople.value.length) selectComparisonPerson(comparisonPeople.value[0])
-      const stored = loadLocalBirthProfile(window.localStorage)
+      const stored = loadLocalBirthProfile(birthStorage)
       if (stored) {
         Object.assign(form, stored)
         profileSaved.value = true
         calculateAndDisplay({ ...form })
+        syncViewFromHash()
       } else setActiveView('account')
       accountLoaded.value = true
       return
@@ -676,6 +707,7 @@ async function connectLineAccount() {
           Object.assign(form, storedBirthProfile)
           profileSaved.value = true
           calculateAndDisplay({ ...form })
+          syncViewFromHash()
         } else setActiveView('account')
         accountSync.status = 'synced'
         accountLoaded.value = true
@@ -831,25 +863,57 @@ if (isBlindTestMode) {
 </script>
 
 <template>
-  <main class="page-shell">
-    <header class="hero">
-      <div class="brand-mark">八字</div>
+  <main class="page-shell" :class="{ 'preview-bottom-menu-page': newExperience && accountReady && profileSaved, 'preview-continuous': newExperience && ['today', 'love', 'home'].includes(activeView) }">
+    <PreviewHeader v-if="newExperience" :picture-url="lineSession.status === 'authenticated' ? lineSession.profile?.pictureUrl : ''" :name="lineSession.status === 'authenticated' ? lineSession.profile?.displayName : ''" :plan="lineSession.status === 'authenticated' && accessPlan === 'premium' ? 'Premium' : 'Free'" @profile="setActiveView('account')" />
+    <header v-else class="hero">
+      <div class="brand-mark">{{ ['home', 'account', 'pricing'].includes(activeView) || !profileSaved ? 'D' : '八字' }}</div>
       <div class="hero-heading">
-        <p class="eyebrow">BAZI</p>
-        <h1>รู้จักตัวเอง ผ่านปาจื้อ</h1>
-        <p v-if="isBlindTestMode || chart" class="hero-copy">
+        <p class="eyebrow">{{ ['home', 'account', 'pricing'].includes(activeView) || !profileSaved ? 'DITI DATA' : 'BAZI' }}</p>
+        <h1>{{ isBlindTestMode ? 'รู้จักตัวเอง ผ่านปาจื้อ' : !profileSaved ? 'เริ่มต้นกับ Diti Data' : activeView === 'home' ? 'สำรวจปาจื้อของคุณ' : activeView === 'account' ? 'โปรไฟล์ของฉัน' : activeView === 'pricing' ? 'แพ็กเกจ' : activeView === 'questions' ? 'ถามปาจื้อ' : 'รู้จักตัวเอง ผ่านปาจื้อ' }}</h1>
+        <p v-if="isBlindTestMode || (chart && ['profile', 'luck', 'compare', 'calendar'].includes(activeView))" class="hero-copy">
           {{ isBlindTestMode ? 'เครื่องมือภายในสำหรับทดสอบคุณภาพคำอ่านโดยไม่เฉลยดวงล่วงหน้า' : 'ค้นพบจุดเด่น เข้าใจวิธีของตัวเอง และนำไปใช้กับชีวิต' }}
         </p>
       </div>
     </header>
 
-    <WelcomeOverview v-if="!isBlindTestMode && accountReady && !profileSaved" @start="startWelcomeProfile" />
 
     <div v-if="!isBlindTestMode && !accountReady" class="account-loading" role="status">
       <p>{{ accountSync.error || (['error', 'unconfigured', 'unauthenticated'].includes(lineSession.status) ? 'ยังเปิดบัญชีไม่ได้ กรุณาลองเชื่อมต่ออีกครั้ง' : 'กำลังเปิดข้อมูลของคุณ…') }}</p>
       <button v-if="accountSync.error || ['error', 'unconfigured', 'unauthenticated'].includes(lineSession.status)" type="button" @click="connectLineAccount">ลองอีกครั้ง</button>
     </div>
-    <nav v-if="!isBlindTestMode && accountReady && chart" class="view-navigation" aria-label="เลือกหน้าคำอ่าน">
+    <TodayPreview v-if="newExperience && accountReady && profileSaved && activeView === 'today'" :chart="chart" :assessment="strength" :input="calculatedInput" :luck-timeline="luckTimeline" :access-plan="lineSession.idToken ? calendarPlan : null" @packages="openPricing()" />
+    <LovePreview v-if="newExperience && accountReady && profileSaved && activeView === 'love'" :chart="chart" :assessment="strength" :input="calculatedInput" :relationship-status="profileDetails.relationshipStatus" :remote-reader="lineSession.idToken ? readCoupleOnServer : null" :saved-reader="lineSession.idToken ? savedCoupleReading : null" :storage-key="lineSession.profile?.userId ? `diti-couples:${lineSession.profile.userId}` : undefined" @profile="setActiveView('account')" />
+    <nav v-if="newExperience && accountReady && profileSaved" class="app-navigation preview-bottom-menu" aria-label="เมนูหลัก สถิติ ดิถี">
+      <button type="button" :class="{ active: activeView === 'today' }" :aria-current="activeView === 'today' ? 'page' : undefined" @click="setActiveView('today')"><i class="pi pi-sun" aria-hidden="true" /><span>วันนี้</span></button>
+      <button type="button" :class="{ active: activeView === 'love' }" :aria-current="activeView === 'love' ? 'page' : undefined" @click="setActiveView('love')"><i class="pi pi-heart" aria-hidden="true" /><span>ความรัก</span></button>
+      <button type="button" :class="{ active: activeView === 'home' }" :aria-current="activeView === 'home' ? 'page' : undefined" @click="setActiveView('home')"><i class="pi pi-id-card" aria-hidden="true" /><span>ดวงของฉัน</span></button>
+    </nav>
+    <MyChartPreview v-if="newExperience && accountReady && profileSaved && activeView === 'home'" :chart="chart" :assessment="strength" :input="calculatedInput" :name="lineSession.profile?.displayName" :plan="isPremium ? 'Premium' : 'Free'" @packages="openPricing()" @edit="setActiveView('account')" />
+    <nav v-if="!newExperience && !isBlindTestMode && accountReady && profileSaved" class="app-navigation" aria-label="เมนูหลัก Diti Data">
+      <button type="button" :class="{ active: activeView === 'love' }" :aria-current="activeView === 'love' ? 'page' : undefined" @click="setActiveView('love')"><i class="pi pi-heart" aria-hidden="true" /><span>ความรัก</span></button>
+      <button type="button" :class="{ active: activeView === 'home' }" :aria-current="activeView === 'home' ? 'page' : undefined" @click="setActiveView('home')"><i class="pi pi-th-large" /> หน้าแรก</button>
+      <button type="button" :class="{ active: activeView === 'pricing' }" :aria-current="activeView === 'pricing' ? 'page' : undefined" @click="openPricing()"><i class="pi pi-crown" /> แพ็กเกจ</button>
+      <button type="button" class="account-profile-button" :class="{ active: activeView === 'account' }" :aria-current="activeView === 'account' ? 'page' : undefined" @click="setActiveView('account')"><i class="pi pi-user-edit" /> โปรไฟล์</button>
+    </nav>
+    <section v-if="!newExperience && !isBlindTestMode && accountReady && profileSaved && activeView === 'home'" class="reading-home" aria-labelledby="reading-home-title">
+      <h2 id="reading-home-title">สำรวจปาจื้อของคุณ</h2>
+      <p>ดูพื้นดวง จังหวะชีวิต และคำแนะนำสำหรับเรื่องที่กำลังวางแผน</p>
+      <div class="reading-choice-grid">
+        <button type="button" class="reading-choice bazi-choice" @click="setActiveView('profile')">
+          <span class="reading-choice-symbol" aria-hidden="true">八字</span>
+          <span class="eyebrow">BAZI</span><strong>ปาจื้อ</strong>
+          <span>พื้นดวง · ถนนชีวิต · ความสัมพันธ์ · ปฏิทิน</span>
+          <small>{{ chart ? 'ดูพื้นดวงของฉัน →' : 'ระบุเวลาเกิดและเพศเพื่อเปิดปาจื้อ →' }}</small>
+        </button>
+        <button v-if="questionsPreview" type="button" class="reading-choice question-choice" @click="setActiveView('questions')">
+          <i class="pi pi-comments reading-choice-symbol" aria-hidden="true" />
+          <span class="eyebrow">BAZI · LOCAL PROTOTYPE</span><strong>ถามปาจื้อ</strong>
+          <span>คำถามรายวันและค้นหาวันที่ควรพิจารณา</span>
+          <small>เปิดต้นแบบในเครื่อง →</small>
+        </button>
+      </div>
+    </section>
+    <nav v-if="!isBlindTestMode && accountReady && chart && ['profile', 'luck', 'compare', 'calendar', 'questions'].includes(activeView)" class="view-navigation" aria-label="เลือกหน้าคำอ่านปาจื้อ">
       <button
         type="button"
         :class="{ active: activeView === 'profile' && !editingBirthProfile }"
@@ -886,26 +950,10 @@ if (isBlindTestMode) {
         <i class="pi pi-calendar" />
         <span><strong>ปฏิทินของฉัน</strong><small>วางแผนรายเดือนและรายวัน</small></span>
       </button>
-      <button
-        type="button"
-        :class="{ active: activeView === 'pricing' }"
-        :aria-current="activeView === 'pricing' ? 'page' : undefined"
-        @click="setActiveView('pricing')"
-      >
-        <i class="pi pi-crown" />
-        <span><strong>แพ็กเกจ</strong><small>ดูสิทธิ์ Free และ Premium</small></span>
-      </button>
-      <button
-        type="button"
-        class="account-profile-button"
-        :class="{ active: editingBirthProfile }"
-        :aria-current="editingBirthProfile ? 'page' : undefined"
-        @click="setActiveView('account')"
-      >
-        <i class="pi pi-user-edit" />
-        <span><strong>โปรไฟล์</strong><small>ข้อมูลเกิดและบัญชีของฉัน</small></span>
-      </button>
+      <button v-if="questionsPreview" type="button" :class="{ active: activeView === 'questions' }" :aria-current="activeView === 'questions' ? 'page' : undefined" @click="setActiveView('questions')"><i class="pi pi-comments" /><span><strong>ถามปาจื้อ</strong><small>คำถามรายวันและเลือกวัน · ต้นแบบ</small></span></button>
     </nav>
+
+    <BaziQuestions v-if="questionsPreview && chart && !isBlindTestMode && activeView === 'questions'" :input="calculatedInput" />
 
     <IdentityReading
       v-if="chart && strength && !isBlindTestMode && activeView === 'profile' && !editingBirthProfile"
@@ -938,7 +986,7 @@ if (isBlindTestMode) {
       </template>
     </IdentityReading>
     <MembershipSummary
-      v-if="!isBlindTestMode && accountReady && chart && activeView === 'profile' && editingBirthProfile"
+      v-if="!isBlindTestMode && accountReady && profileSaved && activeView === 'account'"
       :plan-id="accessPlan"
       :billing-cycle="billingCycle"
       :payment-method="billingPaymentMethod"
@@ -951,7 +999,7 @@ if (isBlindTestMode) {
       :now="calendarNow"
       @packages="openPricing()"
     />
-    <section v-if="isBlindTestMode || (accountReady && activeView === 'profile' && (editingBirthProfile || !chart))" class="workspace" :class="{ 'profile-workspace': !isBlindTestMode }">
+    <section v-if="isBlindTestMode || (accountReady && activeView === 'account')" class="workspace" :class="{ 'profile-workspace': !isBlindTestMode }">
       <form ref="birthForm" class="form-card" :class="{ 'birth-profile-form': !isBlindTestMode }" tabindex="-1" @submit.prevent="submit">
         <div class="section-heading">
           <span v-if="isBlindTestMode" class="step">01</span>
@@ -1046,7 +1094,7 @@ if (isBlindTestMode) {
         <p class="comparison-topic-hint">อ่านรายละเอียดการใช้ข้อมูลเกิดและช่องทางขอลบได้ที่ <a href="/privacy.html" target="_blank" rel="noopener">นโยบายความเป็นส่วนตัว</a></p>
         <Button
           type="submit"
-          :label="isBlindTestMode ? 'เริ่มการทดสอบ' : !canReadBazi(form) ? 'บันทึกโปรไฟล์' : profileSaved ? 'บันทึกโปรไฟล์' : 'บันทึกและดูพื้นดวงของฉัน'"
+          :label="isBlindTestMode ? 'เริ่มการทดสอบ' : 'บันทึกข้อมูล'"
           :loading="profileSaving"
           :disabled="profileSaving"
           icon="pi pi-sparkles"
@@ -1288,7 +1336,8 @@ if (isBlindTestMode) {
 
       <article v-if="comparisonResult" class="comparison-result">
         <div v-if="activeComparisonReport?.isStale" class="comparison-warning">
-          <p>ข้อมูลเก่า — แสดงผลที่บันทึกไว้ ไม่ได้คำนวณด้วยข้อมูลเกิดปัจจุบัน ไม่คืนโควต้า
+          <p>
+            ข้อมูลเก่า — แสดงผลที่บันทึกไว้ ไม่ได้คำนวณด้วยข้อมูลเกิดปัจจุบัน ไม่คืนโควต้า
             <span v-if="activeComparisonReport.ownerBirthSnapshot"> · ข้อมูลเกิดเดิม: {{ birthProfileToForm(activeComparisonReport.ownerBirthSnapshot).birthDate }} {{ birthProfileToForm(activeComparisonReport.ownerBirthSnapshot).birthTime }} · {{ activeComparisonReport.ownerBirthSnapshot.timezone_id }}</span>
           </p>
         </div>
@@ -1317,11 +1366,10 @@ if (isBlindTestMode) {
           <div class="comparison-result-card positive"><span>สิ่งที่ควรทำ</span><p>{{ comparisonResult.shouldDo }}</p></div>
           <div class="comparison-result-card caution"><span>สิ่งที่ควรหลีกเลี่ยง</span><p>{{ comparisonResult.shouldAvoid }}</p></div>
         </div>
-
       </article>
     </section>
 
-    <section v-if="chart && !isBlindTestMode && activeView === 'pricing'" class="pricing-section">
+    <section v-if="profileSaved && !isBlindTestMode && activeView === 'pricing'" class="pricing-section">
       <div v-if="pricingNotice" class="pricing-notice"><i class="pi pi-info-circle" /> {{ pricingNotice }}</div>
 
       <PackageSelection v-if="!selectedBillingProduct" :plan-id="accessPlan" :billing-cycle="billingCycle" :payment-method="billingPaymentMethod" :expires-at="premiumExpiresAt" :next-membership="nextMembership" @select="product => choosePlan(product === 'comparison' ? 'comparison' : 'premium', product)">
@@ -1414,7 +1462,6 @@ if (isBlindTestMode) {
       </div>
 
       <PersonalDayReading v-if="selectedCalendarDay && calendarDayAllowed(selectedCalendarDay)" :day="selectedCalendarDay" :month-label="personalMonth.monthLabel" />
-
     </section>
 
     <section v-if="!isBlindTestMode && activeView === 'luck' && luckTimeline" class="luck-section">
@@ -1519,7 +1566,6 @@ if (isBlindTestMode) {
           <div><span>สิ่งที่ควรหลีกเลี่ยง</span><p>{{ selectedLuckReading.shouldAvoid }}</p></div>
         </div>
       </article>
-
     </section>
     <footer class="service-links" style="text-align: center; padding: 24px 16px; font-size: .85rem;">
       <a href="/help.html">วิธีใช้ / คำถามที่พบบ่อย</a>

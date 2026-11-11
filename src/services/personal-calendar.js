@@ -1,4 +1,5 @@
 import { calculateChart } from './bazi.js'
+import { scoreLevel } from './score-level.js'
 import { personalStars } from './personal-stars.js'
 import { buildDailyBalance } from './daily-balance.js'
 export { calendarFocusOptions, shiftCalendarMonth } from './calendar-options.js'
@@ -145,6 +146,40 @@ function scoreElement(element, assessment) {
   if ((assessment.cautionElements ?? []).includes(element)) return -1.5
   return 0
 }
+
+// Local prototype: apply the existing element and branch weights to the hour
+// pillar. This is a new hourly heuristic, not the daily score or Qimen.
+export function buildPersonalHours({ chart, assessment, input, date }) {
+  if (!chart || !assessment || !input) return []
+  const [year, month, day] = date.split('-').map(Number)
+  const starts = [0, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23]
+  return starts.map((start, index) => {
+    const end = starts[index + 1] ?? 24
+    const transit = calculateChart({ birthDate: formatDateInput(year, month, day), birthTime: `${String(start).padStart(2, '0')}:30`, gender: input.gender, timezoneId: 'Asia/Bangkok' })
+    const hour = transit.pillars.hour
+    const factors = []
+    const add = (label, points) => { if (points) factors.push({ label, points }) }
+    add(`ธาตุก้านยาม ${hour.stem} (${elementNames[hour.element]})`, scoreElement(hour.element, assessment) * 10)
+    add(`ธาตุกิ่งยาม ${hour.branch} (${elementNames[hour.branchElement]})`, scoreElement(hour.branchElement, assessment) * 7)
+    for (const position of ['year', 'month', 'day', 'hour']) {
+      const branch = chart.pillars[position]?.branch
+      if (!branch) continue
+      if (hasPair(branchCombinations, hour.branch, branch)) add(`ยาม ${hour.branch} 合 กับเสา${{ year: 'ปี', month: 'เดือน', day: 'วัน', hour: 'เวลา' }[position]}เกิด ${branch}`, 15)
+      else if (hasPair(branchClashes, hour.branch, branch)) add(`ยาม ${hour.branch} 冲 กับเสา${{ year: 'ปี', month: 'เดือน', day: 'วัน', hour: 'เวลา' }[position]}เกิด ${branch}`, -25)
+      else if (hasPair(branchHarms, hour.branch, branch)) add(`ยาม ${hour.branch} 害 กับเสา${{ year: 'ปี', month: 'เดือน', day: 'วัน', hour: 'เวลา' }[position]}เกิด ${branch}`, -12.5)
+    }
+    const raw = 50 + factors.reduce((sum, item) => sum + item.points, 0)
+    const score = Math.round(Math.max(0, Math.min(100, raw)))
+    const rating = scoreLevel(score)
+    const level = rating.key
+    return { start, end, pillar: `${hour.stem}${hour.branch}`, score, factors, adjustment: score - raw, level,
+      label: rating.label,
+      summary: ['good', 'excellent'].includes(level) ? 'เหมาะลงมือเรื่องที่เตรียมข้อมูลพร้อมแล้ว' : level === 'caution' ? 'เผื่อเวลา ตรวจรายละเอียดก่อนตัดสินใจ' : 'ทำตามแผนทีละเรื่อง ไม่ต้องเร่งเพิ่ม',
+      time: `${String(start).padStart(2, '0')}:00–${String(end - 1).padStart(2, '0')}:59` }
+  })
+}
+
+export { dailyHeadline } from './daily-headline.js'
 
 function collectInteractions(dayBranch, chart, positions) {
   const interactions = []

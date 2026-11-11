@@ -3,9 +3,9 @@ import { defaultBirthProfile, loadLocalBirthProfile, saveLocalBirthProfile, LOCA
 
 describe('localhost mock profile', () => {
   beforeEach(() => localStorage.clear())
-  it('starts with the requested existing birth profile', () => {
-    expect(loadLocalBirthProfile(localStorage)).toEqual(defaultBirthProfile)
-    expect(JSON.parse(localStorage.getItem(LOCAL_PROFILE_KEY))).toEqual(defaultBirthProfile)
+  it('starts empty without inserting sample personal data', () => {
+    expect(loadLocalBirthProfile(localStorage)).toBeNull()
+    expect(localStorage.getItem(LOCAL_PROFILE_KEY)).toBeNull()
   })
   it('keeps edits after a new session loads', () => {
     const edited = { ...defaultBirthProfile, birthDate: '01/02/1990', birthTime: '23:15' }

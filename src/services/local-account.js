@@ -7,8 +7,7 @@ export const defaultBirthProfile = {
 export function loadLocalBirthProfile(storage) {
   const saved = storage.getItem(LOCAL_PROFILE_KEY)
   if (saved === null) {
-    storage.setItem(LOCAL_PROFILE_KEY, JSON.stringify(defaultBirthProfile))
-    return { ...defaultBirthProfile }
+    return null
   }
   return JSON.parse(saved)
 }

@@ -5,3 +5,7 @@ dist/
 .env*
 !.env.example
 coverage/
+
+# Local screenshots, QA output, and external reference checkouts
+output/
+ref/
